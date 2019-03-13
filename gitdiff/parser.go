@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"strings"
 )
 
 // Parse parses a patch with changes for one or more files. Any content
@@ -39,10 +40,77 @@ type parser struct {
 	nextLine string
 }
 
+const (
+	fragmentHeaderPrefix = "@@ -"
+
+	fileHeaderPrefix = "diff --git"
+	oldFilePrefix    = "--- "
+	newFilePrefix    = "+++ "
+)
+
 // ParseNextFileHeader finds and parses the next file header in the stream. It
 // returns nil if no headers are found before the end of the stream.
-func (p *parser) ParseNextFileHeader() (*File, error) {
-	panic("unimplemented")
+func (p *parser) ParseNextFileHeader() (file *File, err error) {
+	// based on find_header() in git/apply.c
+
+	defer func() {
+		if err == io.EOF && file == nil {
+			err = nil
+		}
+	}()
+
+	for {
+		line, err := p.Line()
+		if err != io.EOF {
+			return nil, err
+		}
+
+		// check for disconnected fragment headers (corrupt patch)
+		if isMaybeFragmentHeader(line) {
+			var frag Fragment
+			if err := p.ParseFragmentHeader(&frag, line); err != nil {
+				// not a valid header, nothing to worry about
+				continue
+			}
+			return nil, p.Errorf("patch fragment without header: %s", line)
+		}
+
+		// check for a git-generated patch
+		if strings.HasPrefix(line, fileHeaderPrefix) {
+			file = new(File)
+			if err := p.ParseGitFileHeader(file, line); err != nil {
+				return nil, err
+			}
+			return file, nil
+		}
+
+		next, err := p.PeekLine()
+		if err != nil {
+			return nil, err
+		}
+
+		// check for a "traditional" patch
+		if strings.HasPrefix(line, oldFilePrefix) && strings.HasPrefix(next, newFilePrefix) {
+			oldFileLine := line
+			newFileLine, _ := p.Line()
+
+			next, err := p.PeekLine()
+			if err != nil {
+				return nil, err
+			}
+
+			// only a file header if followed by a (probable) unified fragment header
+			if !isMaybeFragmentHeader(next) {
+				continue
+			}
+
+			file = new(File)
+			if err := p.ParseTraditionalFileHeader(file, oldFileLine, newFileLine); err != nil {
+				return nil, err
+			}
+			return file, nil
+		}
+	}
 }
 
 // ParseFileChanges parses file changes until the next file header or the end
@@ -51,7 +119,20 @@ func (p *parser) ParseFileChanges(f *File) error {
 	panic("unimplemented")
 }
 
-// Line reads and returns the next line.
+func (p *parser) ParseGitFileHeader(f *File, header string) error {
+	panic("unimplemented")
+}
+
+func (p *parser) ParseTraditionalFileHeader(f *File, oldFile, newFile string) error {
+	panic("unimplemented")
+}
+
+func (p *parser) ParseFragmentHeader(f *Fragment, header string) error {
+	panic("unimplemented")
+}
+
+// Line reads and returns the next line. The first call to Line after a call to
+// PeekLine will never retrun an error.
 func (p *parser) Line() (line string, err error) {
 	if p.nextLine != "" {
 		line = p.nextLine
@@ -77,4 +158,9 @@ func (p *parser) PeekLine() (line string, err error) {
 // Errorf generates an error and appends the current line information.
 func (p *parser) Errorf(msg string, args ...interface{}) error {
 	return fmt.Errorf("gitdiff: line %d: %s", p.lineno, fmt.Sprintf(msg, args...))
+}
+
+func isMaybeFragmentHeader(line string) bool {
+	shortestValidHeader := "@@ -0,0 +1 @@\n"
+	return len(line) >= len(shortestValidHeader) && strings.HasPrefix(line, fragmentHeaderPrefix)
 }
