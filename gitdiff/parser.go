@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -46,6 +48,11 @@ const (
 	fileHeaderPrefix = "diff --git"
 	oldFilePrefix    = "--- "
 	newFilePrefix    = "+++ "
+)
+
+var (
+	// TODO(bkeyes): are the boundary conditions necessary?
+	fragmentHeaderRegexp = regexp.MustCompile(`^@@ -(\d+),(\d+) \+(\d+)(?:,(\d+))? @@.*\n`)
 )
 
 // ParseNextFileHeader finds and parses the next file header in the stream. It
@@ -128,7 +135,38 @@ func (p *parser) ParseTraditionalFileHeader(f *File, oldFile, newFile string) er
 }
 
 func (p *parser) ParseFragmentHeader(f *Fragment, header string) error {
-	panic("unimplemented")
+	match := fragmentHeaderRegexp.FindStringSubmatch(header)
+	if len(match) < 5 {
+		return p.Errorf("invalid fragment header")
+	}
+
+	parseInt := func(s string, v *int64) (err error) {
+		if *v, err = strconv.ParseInt(s, 10, 64); err != nil {
+			nerr := err.(*strconv.NumError)
+			return p.Errorf("invalid fragment header value: %s: %v", s, nerr.Err)
+		}
+		return
+	}
+
+	if err := parseInt(match[1], &f.OldPosition); err != nil {
+		return err
+	}
+	if err := parseInt(match[2], &f.OldLines); err != nil {
+		return err
+	}
+
+	if err := parseInt(match[3], &f.NewPosition); err != nil {
+		return err
+	}
+
+	f.NewLines = 1
+	if match[4] != "" {
+		if err := parseInt(match[4], &f.NewLines); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Line reads and returns the next line. The first call to Line after a call to

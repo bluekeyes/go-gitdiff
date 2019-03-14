@@ -7,4 +7,10 @@ type File struct {
 }
 
 // Fragment describes changed lines starting at a specific line in a text file.
-type Fragment struct{}
+type Fragment struct {
+	OldPosition int64
+	OldLines    int64
+
+	NewPosition int64
+	NewLines    int64
+}
