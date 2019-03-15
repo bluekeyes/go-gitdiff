@@ -1,8 +1,25 @@
 package gitdiff
 
+import (
+	"os"
+)
+
 // File describes changes to a single file. It can be either a text file or a
 // binary file.
 type File struct {
+	OldName string
+	NewName string
+
+	IsNew    bool
+	IsDelete bool
+	IsCopy   bool
+	IsRename bool
+
+	OldMode os.FileMode
+	NewMode os.FileMode
+
+	Score int
+
 	Fragments []*Fragment
 }
 
