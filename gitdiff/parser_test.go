@@ -109,11 +109,8 @@ func TestParseFragmentHeader(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			p := &parser{r: bufio.NewReader(strings.NewReader(test.Input))}
-			line, _ := p.Line()
-
 			var frag Fragment
-			err := p.ParseFragmentHeader(&frag, line)
+			err := parseFragmentHeader(&frag, test.Input)
 
 			if test.Invalid {
 				if err == nil {
