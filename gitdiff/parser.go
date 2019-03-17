@@ -126,7 +126,7 @@ func (p *parser) ParseNextFileHeader() (file *File, err error) {
 // ParseFileChanges parses file changes until the next file header or the end
 // of the stream and attaches them to the given file.
 func (p *parser) ParseFileChanges(f *File) error {
-	panic("unimplemented")
+	panic("TODO(bkeyes): unimplemented")
 }
 
 func (p *parser) ParseGitFileHeader(f *File, header string) error {
@@ -153,7 +153,7 @@ func (p *parser) ParseGitFileHeader(f *File, header string) error {
 }
 
 func (p *parser) ParseTraditionalFileHeader(f *File, oldFile, newFile string) error {
-	panic("unimplemented")
+	panic("TODO(bkeyes): unimplemented")
 }
 
 // Line reads and returns the next line. The first call to Line after a call to
@@ -186,7 +186,7 @@ func (p *parser) Errorf(msg string, args ...interface{}) error {
 }
 
 func isMaybeFragmentHeader(line string) bool {
-	shortestValidHeader := "@@ -0,0 +1 @@\n"
+	const shortestValidHeader = "@@ -0,0 +1 @@\n"
 	return len(line) >= len(shortestValidHeader) && strings.HasPrefix(line, fragmentHeaderPrefix)
 }
 
@@ -351,7 +351,27 @@ func parseGitScore(f *File, line string) error {
 }
 
 func parseGitIndex(f *File, line string) error {
-	panic("TODO(bkeyes): unimplemented")
+	const minOIDSize = 40
+	const sep = ".."
+
+	parts := strings.SplitN(line, " ", 2)
+	oids := strings.SplitN(parts[0], sep, 2)
+
+	if len(oids) < 2 {
+		return fmt.Errorf("invalid index line: missing %q", sep)
+	}
+	if len(oids[0]) < minOIDSize {
+		return fmt.Errorf("invalid index line: invalid old OID")
+	}
+	if len(oids[1]) < minOIDSize {
+		return fmt.Errorf("invalid index line: invalid new OID")
+	}
+	f.OldOID, f.NewOID = oids[0], oids[1]
+
+	if len(parts) > 1 {
+		return parseGitOldMode(f, parts[1])
+	}
+	return nil
 }
 
 func parseMode(s string) (os.FileMode, error) {
