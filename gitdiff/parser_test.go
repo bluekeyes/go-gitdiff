@@ -129,3 +129,27 @@ func TestParseFragmentHeader(t *testing.T) {
 		})
 	}
 }
+
+func TestCleanName(t *testing.T) {
+	tests := []struct {
+		Name     string
+		Input    string
+		Drop     int
+		Expected string
+	}{
+		{Name: "alreadyClean", Input: "a/b/c.txt", Expected: "a/b/c.txt"},
+		{Name: "doubleSlashes", Input: "a//b/c.txt", Expected: "a/b/c.txt"},
+		{Name: "tripleSlashes", Input: "a///b/c.txt", Expected: "a/b/c.txt"},
+		{Name: "dropPrefix", Input: "a/b/c.txt", Drop: 2, Expected: "c.txt"},
+		{Name: "removeDoublesBeforeDrop", Input: "a//b/c.txt", Drop: 1, Expected: "b/c.txt"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			output := cleanName(test.Input, test.Drop)
+			if output != test.Expected {
+				t.Fatalf("incorrect output\nexpected: %s\nactual:%s", test.Expected, output)
+			}
+		})
+	}
+}

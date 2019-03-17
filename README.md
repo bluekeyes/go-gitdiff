@@ -29,8 +29,8 @@ In development, most functionality is currently missing, incomplete, or broken.
 
 <b id="f1">1:</b> In practice this library is stricter than `git apply` when
 given certain types of invalid input, particularly lines that contain garbage
-following the valid content. Git seems to ignore this, while this library will
-usually return an error. [↩](#a1)
+following the valid content. Git seems to ignore this in some cases, while this
+library will usually return an error. [↩](#a1)
 
 [sourcegraph]: https://github.com/sourcegraph/go-diff
 [sergi]: https://github.com/sergi/go-diff
@@ -38,3 +38,8 @@ usually return an error. [↩](#a1)
 [seletskiy]: https://github.com/seletskiy/godiff
 
 [apply.c]: https://github.com/git/git/blob/master/apply.c
+
+## Known Issues and Limitations
+
+1. The translation from C to Go may have introduced inconsistencies in the way
+   unicode file names are handled; please report any issues of this type.
