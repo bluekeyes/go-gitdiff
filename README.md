@@ -27,10 +27,10 @@ In development, most functionality is currently missing, incomplete, or broken.
 
 4. It seemed like a fun thing to write and a good way to learn more about Git.
 
-<b id="f1">1:</b> In practice this library is stricter than `git apply` when
+<sup id="f1">1</sup> In practice this library is stricter than `git apply` when
 given certain types of invalid input, particularly lines that contain garbage
 following the valid content. Git seems to ignore this in some cases, while this
-library will usually return an error. [↩](#a1)
+library will usually return an error.
 
 [sourcegraph]: https://github.com/sourcegraph/go-diff
 [sergi]: https://github.com/sergi/go-diff
