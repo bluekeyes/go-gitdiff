@@ -139,11 +139,11 @@ func (p *parser) ParseGitFileHeader(f *File, header string) error {
 			return err
 		}
 
-		more, err := parseGitHeaderLine(f, line)
+		end, err := parseGitHeaderLine(f, line)
 		if err != nil {
 			return p.Errorf("header: %v", err)
 		}
-		if !more {
+		if end {
 			break
 		}
 		p.Line()
@@ -226,118 +226,141 @@ func parseFragmentHeader(f *Fragment, header string) error {
 	return nil
 }
 
-func parseGitHeaderLine(f *File, line string) (next bool, err error) {
-	match := func(s string) bool {
-		if strings.HasPrefix(line, s) {
-			line = line[len(s):]
-			return true
-		}
-		return false
-	}
-
+func parseGitHeaderLine(f *File, line string) (end bool, err error) {
 	if line[len(line)-1] == '\n' {
 		line = line[:len(line)-1]
 	}
 
-	switch {
-	case match(fragmentHeaderPrefix):
-		// start of a fragment indicates the end of the header
-		return false, nil
-
-	case match(oldFilePrefix):
-		existing := f.OldName
-
-		f.OldName, _, err = parseName(line, '\t')
-		if err == nil {
-			err = verifyName(f.OldName, existing, f.IsNew, "old")
+	for _, hdr := range []struct {
+		prefix string
+		end    bool
+		parse  func(*File, string) error
+	}{
+		{fragmentHeaderPrefix, true, nil},
+		{oldFilePrefix, false, parseGitOldName},
+		{newFilePrefix, false, parseGitNewName},
+		{"old mode ", false, parseGitOldMode},
+		{"new mode ", false, parseGitNewMode},
+		{"deleted file mode ", false, parseGitDeletedMode},
+		{"new file mode ", false, parseGitCreatedMode},
+		{"copy from ", false, parseGitCopyFrom},
+		{"copy to ", false, parseGitCopyTo},
+		{"rename old ", false, parseGitRenameFrom},
+		{"rename new ", false, parseGitRenameTo},
+		{"rename from ", false, parseGitRenameFrom},
+		{"rename to ", false, parseGitRenameTo},
+		{"similarity index ", false, parseGitScore},
+		{"dissimilarity index ", false, parseGitScore},
+		{"index ", false, parseGitIndex},
+	} {
+		if strings.HasPrefix(line, hdr.prefix) {
+			if hdr.parse != nil {
+				err = hdr.parse(f, line[len(hdr.prefix):])
+			}
+			return hdr.end, err
 		}
-
-	case match(newFilePrefix):
-		existing := f.NewName
-
-		f.NewName, _, err = parseName(line, '\t')
-		if err == nil {
-			err = verifyName(f.NewName, existing, f.IsDelete, "new")
-		}
-
-	case match("old mode "):
-		f.OldMode, err = parseModeLine(line)
-
-	case match("new mode "):
-		f.NewMode, err = parseModeLine(line)
-
-	case match("deleted file mode "):
-		// TODO(bkeyes): maybe set old name from default?
-		f.IsDelete = true
-		f.OldMode, err = parseModeLine(line)
-
-	case match("new file mode "):
-		// TODO(bkeyes): maybe set new name from default?
-		f.IsNew = true
-		f.NewMode, err = parseModeLine(line)
-
-	case match("copy from "):
-		f.IsCopy = true
-		f.OldName, _, err = parseName(line, 0)
-
-	case match("copy to "):
-		f.IsCopy = true
-		f.NewName, _, err = parseName(line, 0)
-
-	case match("rename old "):
-		f.IsRename = true
-		f.OldName, _, err = parseName(line, 0)
-
-	case match("rename new "):
-		f.IsRename = true
-		f.NewName, _, err = parseName(line, 0)
-
-	case match("rename from "):
-		f.IsRename = true
-		f.OldName, _, err = parseName(line, 0)
-
-	case match("rename to "):
-		f.IsRename = true
-		f.NewName, _, err = parseName(line, 0)
-
-	case match("similarity index "):
-		f.Score, err = parseScoreLine(line)
-
-	case match("dissimilarity index "):
-		f.Score, err = parseScoreLine(line)
-
-	case match("index "):
-
-	default:
-		// unknown line also indicates the end of the header
-		// this usually happens if the diff is empty
-		return false, nil
 	}
 
-	return err == nil, err
+	// unknown line indicates the end of the header
+	// this usually happens if the diff is empty
+	return true, nil
 }
 
-func parseModeLine(s string) (os.FileMode, error) {
+func parseGitOldName(f *File, line string) error {
+	name, _, err := parseName(line, '\t')
+	if err != nil {
+		return err
+	}
+	if err := verifyName(name, f.OldName, f.IsNew, "old"); err != nil {
+		return err
+	}
+	f.OldName = name
+	return nil
+}
+
+func parseGitNewName(f *File, line string) error {
+	name, _, err := parseName(line, '\t')
+	if err != nil {
+		return err
+	}
+	if err := verifyName(name, f.NewName, f.IsDelete, "new"); err != nil {
+		return err
+	}
+	f.NewName = name
+	return nil
+}
+
+func parseGitOldMode(f *File, line string) (err error) {
+	f.OldMode, err = parseMode(line)
+	return
+}
+
+func parseGitNewMode(f *File, line string) (err error) {
+	f.NewMode, err = parseMode(line)
+	return
+}
+
+func parseGitDeletedMode(f *File, line string) (err error) {
+	// TODO(bkeyes): maybe set old name from default?
+	f.IsDelete = true
+	f.OldMode, err = parseMode(line)
+	return
+}
+
+func parseGitCreatedMode(f *File, line string) (err error) {
+	// TODO(bkeyes): maybe set new name from default?
+	f.IsNew = true
+	f.NewMode, err = parseMode(line)
+	return
+}
+
+func parseGitCopyFrom(f *File, line string) (err error) {
+	f.IsCopy = true
+	f.OldName, _, err = parseName(line, 0)
+	return
+}
+
+func parseGitCopyTo(f *File, line string) (err error) {
+	f.IsCopy = true
+	f.NewName, _, err = parseName(line, 0)
+	return
+}
+
+func parseGitRenameFrom(f *File, line string) (err error) {
+	f.IsRename = true
+	f.OldName, _, err = parseName(line, 0)
+	return
+}
+
+func parseGitRenameTo(f *File, line string) (err error) {
+	f.IsRename = true
+	f.NewName, _, err = parseName(line, 0)
+	return
+}
+
+func parseGitScore(f *File, line string) error {
+	score, err := strconv.ParseInt(line, 10, 32)
+	if err != nil {
+		nerr := err.(*strconv.NumError)
+		return fmt.Errorf("invalid score line: %v", nerr.Err)
+	}
+	if score <= 100 {
+		f.Score = int(score)
+	}
+	return nil
+}
+
+func parseGitIndex(f *File, line string) error {
+	panic("TODO(bkeyes): unimplemented")
+}
+
+func parseMode(s string) (os.FileMode, error) {
 	mode, err := strconv.ParseInt(s, 8, 32)
 	if err != nil {
 		nerr := err.(*strconv.NumError)
 		return os.FileMode(0), fmt.Errorf("invalid mode line: %v", nerr.Err)
 	}
-
 	return os.FileMode(mode), nil
-}
-
-func parseScoreLine(s string) (int, error) {
-	score, err := strconv.ParseInt(s, 10, 32)
-	if err != nil {
-		nerr := err.(*strconv.NumError)
-		return 0, fmt.Errorf("invalid score line: %v", nerr.Err)
-	}
-
-	if score >= 100 {
-		score = 0
-	}
-	return int(score), nil
 }
 
 // parseName extracts a file name from the start of a string and returns the
