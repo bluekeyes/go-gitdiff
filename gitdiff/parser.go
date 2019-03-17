@@ -139,7 +139,7 @@ func (p *parser) ParseGitFileHeader(f *File, header string) error {
 			return err
 		}
 
-		end, err := parseGitHeaderLine(f, line)
+		end, err := parseGitHeaderData(f, line)
 		if err != nil {
 			return p.Errorf("header: %v", err)
 		}
@@ -226,7 +226,7 @@ func parseFragmentHeader(f *Fragment, header string) error {
 	return nil
 }
 
-func parseGitHeaderLine(f *File, line string) (end bool, err error) {
+func parseGitHeaderData(f *File, line string) (end bool, err error) {
 	if line[len(line)-1] == '\n' {
 		line = line[:len(line)-1]
 	}
@@ -237,21 +237,21 @@ func parseGitHeaderLine(f *File, line string) (end bool, err error) {
 		parse  func(*File, string) error
 	}{
 		{fragmentHeaderPrefix, true, nil},
-		{oldFilePrefix, false, parseGitOldName},
-		{newFilePrefix, false, parseGitNewName},
-		{"old mode ", false, parseGitOldMode},
-		{"new mode ", false, parseGitNewMode},
-		{"deleted file mode ", false, parseGitDeletedMode},
-		{"new file mode ", false, parseGitCreatedMode},
-		{"copy from ", false, parseGitCopyFrom},
-		{"copy to ", false, parseGitCopyTo},
-		{"rename old ", false, parseGitRenameFrom},
-		{"rename new ", false, parseGitRenameTo},
-		{"rename from ", false, parseGitRenameFrom},
-		{"rename to ", false, parseGitRenameTo},
-		{"similarity index ", false, parseGitScore},
-		{"dissimilarity index ", false, parseGitScore},
-		{"index ", false, parseGitIndex},
+		{oldFilePrefix, false, parseGitHeaderOldName},
+		{newFilePrefix, false, parseGitHeaderNewName},
+		{"old mode ", false, parseGitHeaderOldMode},
+		{"new mode ", false, parseGitHeaderNewMode},
+		{"deleted file mode ", false, parseGitHeaderDeletedMode},
+		{"new file mode ", false, parseGitHeaderCreatedMode},
+		{"copy from ", false, parseGitHeaderCopyFrom},
+		{"copy to ", false, parseGitHeaderCopyTo},
+		{"rename old ", false, parseGitHeaderRenameFrom},
+		{"rename new ", false, parseGitHeaderRenameTo},
+		{"rename from ", false, parseGitHeaderRenameFrom},
+		{"rename to ", false, parseGitHeaderRenameTo},
+		{"similarity index ", false, parseGitHeaderScore},
+		{"dissimilarity index ", false, parseGitHeaderScore},
+		{"index ", false, parseGitHeaderIndex},
 	} {
 		if strings.HasPrefix(line, hdr.prefix) {
 			if hdr.parse != nil {
@@ -266,7 +266,7 @@ func parseGitHeaderLine(f *File, line string) (end bool, err error) {
 	return true, nil
 }
 
-func parseGitOldName(f *File, line string) error {
+func parseGitHeaderOldName(f *File, line string) error {
 	name, _, err := parseName(line, '\t')
 	if err != nil {
 		return err
@@ -278,7 +278,7 @@ func parseGitOldName(f *File, line string) error {
 	return nil
 }
 
-func parseGitNewName(f *File, line string) error {
+func parseGitHeaderNewName(f *File, line string) error {
 	name, _, err := parseName(line, '\t')
 	if err != nil {
 		return err
@@ -290,55 +290,55 @@ func parseGitNewName(f *File, line string) error {
 	return nil
 }
 
-func parseGitOldMode(f *File, line string) (err error) {
+func parseGitHeaderOldMode(f *File, line string) (err error) {
 	f.OldMode, err = parseMode(line)
 	return
 }
 
-func parseGitNewMode(f *File, line string) (err error) {
+func parseGitHeaderNewMode(f *File, line string) (err error) {
 	f.NewMode, err = parseMode(line)
 	return
 }
 
-func parseGitDeletedMode(f *File, line string) (err error) {
+func parseGitHeaderDeletedMode(f *File, line string) (err error) {
 	// TODO(bkeyes): maybe set old name from default?
 	f.IsDelete = true
 	f.OldMode, err = parseMode(line)
 	return
 }
 
-func parseGitCreatedMode(f *File, line string) (err error) {
+func parseGitHeaderCreatedMode(f *File, line string) (err error) {
 	// TODO(bkeyes): maybe set new name from default?
 	f.IsNew = true
 	f.NewMode, err = parseMode(line)
 	return
 }
 
-func parseGitCopyFrom(f *File, line string) (err error) {
+func parseGitHeaderCopyFrom(f *File, line string) (err error) {
 	f.IsCopy = true
 	f.OldName, _, err = parseName(line, 0)
 	return
 }
 
-func parseGitCopyTo(f *File, line string) (err error) {
+func parseGitHeaderCopyTo(f *File, line string) (err error) {
 	f.IsCopy = true
 	f.NewName, _, err = parseName(line, 0)
 	return
 }
 
-func parseGitRenameFrom(f *File, line string) (err error) {
+func parseGitHeaderRenameFrom(f *File, line string) (err error) {
 	f.IsRename = true
 	f.OldName, _, err = parseName(line, 0)
 	return
 }
 
-func parseGitRenameTo(f *File, line string) (err error) {
+func parseGitHeaderRenameTo(f *File, line string) (err error) {
 	f.IsRename = true
 	f.NewName, _, err = parseName(line, 0)
 	return
 }
 
-func parseGitScore(f *File, line string) error {
+func parseGitHeaderScore(f *File, line string) error {
 	score, err := strconv.ParseInt(line, 10, 32)
 	if err != nil {
 		nerr := err.(*strconv.NumError)
@@ -350,7 +350,7 @@ func parseGitScore(f *File, line string) error {
 	return nil
 }
 
-func parseGitIndex(f *File, line string) error {
+func parseGitHeaderIndex(f *File, line string) error {
 	const minOIDSize = 40
 	const sep = ".."
 
@@ -369,7 +369,7 @@ func parseGitIndex(f *File, line string) error {
 	f.OldOID, f.NewOID = oids[0], oids[1]
 
 	if len(parts) > 1 {
-		return parseGitOldMode(f, parts[1])
+		return parseGitHeaderOldMode(f, parts[1])
 	}
 	return nil
 }
