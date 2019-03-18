@@ -393,7 +393,6 @@ func parseGitHeaderScore(f *File, line, defaultName string) error {
 }
 
 func parseGitHeaderIndex(f *File, line, defaultName string) error {
-	const minOIDSize = 40
 	const sep = ".."
 
 	parts := strings.SplitN(line, " ", 2)
@@ -401,12 +400,6 @@ func parseGitHeaderIndex(f *File, line, defaultName string) error {
 
 	if len(oids) < 2 {
 		return fmt.Errorf("invalid index line: missing %q", sep)
-	}
-	if len(oids[0]) < minOIDSize {
-		return fmt.Errorf("invalid index line: invalid old OID")
-	}
-	if len(oids[1]) < minOIDSize {
-		return fmt.Errorf("invalid index line: invalid new OID")
 	}
 	f.OldOID, f.NewOID = oids[0], oids[1]
 

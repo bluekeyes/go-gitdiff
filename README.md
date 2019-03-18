@@ -22,15 +22,10 @@ In development, most functionality is currently missing, incomplete, or broken.
 2. Most other packages only parse patches, so you need another package to apply
    them (and if they do support applies, it is only for text files.)
 
-3. This package aims to accept anything<sup id="a1">[1](#f1)</sup> that `git
-   apply` accepts, and closely follows the logic in [`apply.c`][apply.c].
+3. This package aims to accept anything that `git apply` accepts, and closely
+   follows the logic in [`apply.c`][apply.c].
 
 4. It seemed like a fun thing to write and a good way to learn more about Git.
-
-<sup id="f1">1</sup> In practice this library is stricter than `git apply` when
-given certain types of invalid input, particularly lines that contain garbage
-following the valid content. Git seems to ignore this in some cases, while this
-library will usually return an error.
 
 [sourcegraph]: https://github.com/sourcegraph/go-diff
 [sergi]: https://github.com/sergi/go-diff
@@ -39,7 +34,18 @@ library will usually return an error.
 
 [apply.c]: https://github.com/git/git/blob/master/apply.c
 
-## Known Issues and Limitations
+## Known Issues and Differences From Git
 
-1. The translation from C to Go may have introduced inconsistencies in the way
-   unicode file names are handled; please report any issues of this type.
+1. Certain types of invalid input that I believe are accepted by `git apply`
+   generate errors in this library. These include:
+
+   - Numbers immediately followed by non-numeric characters
+   - Trailing characters on a line after valid or expected content
+
+2. The translation from C to Go may have introduced inconsistencies in the way
+   Unicode file names are handled; these are bugs, so please report any issues
+   of this type.
+
+3. When reading headers, object IDs are always loaded from `index` lines,
+   regardless of their length. Git calls these fields `{new,old}_oid_prefix`
+   but appears to only load full-length OIDs, ignoring abbreviations.
