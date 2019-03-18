@@ -252,6 +252,10 @@ func parseGitHeaderName(header string) (string, error) {
 		return "", err
 	}
 
+	if header[n] == ' ' || header[n] == '\t' {
+		n++
+	}
+
 	secondName, _, err := parseName(header[n:], -1, 1)
 	if err != nil {
 		return "", err
@@ -458,7 +462,7 @@ func parseName(s string, term rune, dropPrefix int) (name string, n int, err err
 		}
 		name = s[:n]
 	}
-	return cleanName(s[:n], dropPrefix), n, nil
+	return cleanName(name, dropPrefix), n, nil
 }
 
 // verifyName checks parsed names against state set by previous header lines

@@ -59,96 +59,158 @@ the third line
 }
 
 func TestParseFragmentHeader(t *testing.T) {
-	tests := []struct {
-		Name     string
-		Input    string
-		Expected *Fragment
-		Invalid  bool
+	tests := map[string]struct {
+		Input  string
+		Output *Fragment
+		Err    bool
 	}{
-		{
-			Name:  "shortest",
+		"shortest": {
 			Input: "@@ -0,0 +1 @@\n",
-			Expected: &Fragment{
+			Output: &Fragment{
 				OldPosition: 0,
 				OldLines:    0,
 				NewPosition: 1,
 				NewLines:    1,
 			},
 		},
-		{
-			Name:  "standard",
+		"standard": {
 			Input: "@@ -21,5 +28,9 @@\n",
-			Expected: &Fragment{
+			Output: &Fragment{
 				OldPosition: 21,
 				OldLines:    5,
 				NewPosition: 28,
 				NewLines:    9,
 			},
 		},
-		{
-			Name:  "trailingWhitespace",
+		"trailingWhitespace": {
 			Input: "@@ -21,5 +28,9 @@ \r\n",
-			Expected: &Fragment{
+			Output: &Fragment{
 				OldPosition: 21,
 				OldLines:    5,
 				NewPosition: 28,
 				NewLines:    9,
 			},
 		},
-		{
-			Name:    "incomplete",
-			Input:   "@@ -12,3 +2\n",
-			Invalid: true,
+		"incomplete": {
+			Input: "@@ -12,3 +2\n",
+			Err:   true,
 		},
-		{
-			Name:    "badNumbers",
-			Input:   "@@ -1a,2b +3c,4d @@\n",
-			Invalid: true,
+		"badNumbers": {
+			Input: "@@ -1a,2b +3c,4d @@\n",
+			Err:   true,
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.Name, func(t *testing.T) {
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
 			var frag Fragment
 			err := parseFragmentHeader(&frag, test.Input)
-
-			if test.Invalid {
+			if test.Err {
 				if err == nil {
 					t.Fatalf("expected error parsing header, but got nil")
 				}
 				return
 			}
-
 			if err != nil {
 				t.Fatalf("error parsing header: %v", err)
 			}
 
-			if !reflect.DeepEqual(*test.Expected, frag) {
-				t.Fatalf("incorrect fragment\nexpected: %+v\nactual: %+v", *test.Expected, frag)
+			if !reflect.DeepEqual(*test.Output, frag) {
+				t.Fatalf("incorrect fragment\nexpected: %+v\nactual: %+v", *test.Output, frag)
 			}
 		})
 	}
 }
 
 func TestCleanName(t *testing.T) {
-	tests := []struct {
-		Name     string
-		Input    string
-		Drop     int
-		Expected string
+	tests := map[string]struct {
+		Input  string
+		Drop   int
+		Output string
 	}{
-		{Name: "alreadyClean", Input: "a/b/c.txt", Expected: "a/b/c.txt"},
-		{Name: "doubleSlashes", Input: "a//b/c.txt", Expected: "a/b/c.txt"},
-		{Name: "tripleSlashes", Input: "a///b/c.txt", Expected: "a/b/c.txt"},
-		{Name: "dropPrefix", Input: "a/b/c.txt", Drop: 2, Expected: "c.txt"},
-		{Name: "removeDoublesBeforeDrop", Input: "a//b/c.txt", Drop: 1, Expected: "b/c.txt"},
+		"alreadyClean": {
+			Input: "a/b/c.txt", Output: "a/b/c.txt",
+		},
+		"doubleSlashes": {
+			Input: "a//b/c.txt", Output: "a/b/c.txt",
+		},
+		"tripleSlashes": {
+			Input: "a///b/c.txt", Output: "a/b/c.txt",
+		},
+		"dropPrefix": {
+			Input: "a/b/c.txt", Drop: 2, Output: "c.txt",
+		},
+		"removeDoublesBeforeDrop": {
+			Input: "a//b/c.txt", Drop: 1, Output: "b/c.txt",
+		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.Name, func(t *testing.T) {
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
 			output := cleanName(test.Input, test.Drop)
-			if output != test.Expected {
-				t.Fatalf("incorrect output\nexpected: %s\nactual:%s", test.Expected, output)
+			if output != test.Output {
+				t.Fatalf("incorrect output: expected %q, actual %q", test.Output, output)
+			}
+		})
+	}
+}
+
+func TestParseName(t *testing.T) {
+	tests := map[string]struct {
+		Input  string
+		Term   rune
+		Drop   int
+		Output string
+		N      int
+		Err    bool
+	}{
+		"singleUnquoted": {
+			Input: "dir/file.txt", Output: "dir/file.txt", N: 12,
+		},
+		"singleQuoted": {
+			Input: `"dir/file.txt"`, Output: "dir/file.txt", N: 14,
+		},
+		"quotedWithEscape": {
+			Input: `"dir/\"quotes\".txt"`, Output: `dir/"quotes".txt`, N: 20,
+		},
+		"quotedWithSpaces": {
+			Input: `"dir/space file.txt"`, Output: "dir/space file.txt", N: 20,
+		},
+		"tabTerminator": {
+			Input: "dir/space file.txt\tfile2.txt", Term: '\t', Output: "dir/space file.txt", N: 18,
+		},
+		"dropPrefix": {
+			Input: "a/dir/file.txt", Drop: 1, Output: "dir/file.txt", N: 14,
+		},
+		"multipleNames": {
+			Input: "dir/a.txt dir/b.txt", Term: -1, Output: "dir/a.txt", N: 9,
+		},
+		"emptyString": {
+			Input: "", Err: true,
+		},
+		"emptyQuotedString": {
+			Input: `""`, Err: true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			output, n, err := parseName(test.Input, test.Term, test.Drop)
+			if test.Err {
+				if err == nil {
+					t.Fatalf("expected error parsing name, but got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error parsing name: %v", err)
+			}
+
+			if output != test.Output {
+				t.Errorf("incorect output: expected %q, actual: %q", test.Output, output)
+			}
+			if n != test.N {
+				t.Errorf("incorrect next position: expected %d, actual %d", test.N, n)
 			}
 		})
 	}
