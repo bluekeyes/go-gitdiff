@@ -49,6 +49,16 @@ the third line
 			t.Fatalf("incorrect peek line: %s", line)
 		}
 
+		// test that a second peek returns the same value
+		line, err = p.PeekLine()
+		if err != nil {
+			t.Fatalf("error peeking line: %v", err)
+		}
+		if line != "the first line\n" {
+			t.Fatalf("incorrect peek line: %s", line)
+		}
+
+		// test that reading the line returns the same value
 		line, err = p.Line()
 		if err != nil {
 			t.Fatalf("error reading line: %v", err)
@@ -186,6 +196,9 @@ func TestParseName(t *testing.T) {
 		"multipleNames": {
 			Input: "dir/a.txt dir/b.txt", Term: -1, Output: "dir/a.txt", N: 9,
 		},
+		"devNull": {
+			Input: "/dev/null", Term: '\t', Drop: 1, Output: "/dev/null", N: 9,
+		},
 		"emptyString": {
 			Input: "", Err: true,
 		},
@@ -244,11 +257,73 @@ func TestParseGitHeaderData(t *testing.T) {
 				OldName: "dir/file.txt",
 			},
 		},
+		"oldFileNameDevNull": {
+			InputFile: &File{
+				IsNew: true,
+			},
+			Line: "--- /dev/null\n",
+			OutputFile: &File{
+				IsNew: true,
+			},
+		},
+		"oldFileNameInconsistent": {
+			InputFile: &File{
+				OldName: "dir/foo.txt",
+			},
+			Line: "--- a/dir/bar.txt\n",
+			Err:  true,
+		},
+		"oldFileNameExistingCreateMismatch": {
+			InputFile: &File{
+				OldName: "dir/foo.txt",
+				IsNew:   true,
+			},
+			Line: "--- /dev/null\n",
+			Err:  true,
+		},
+		"oldFileNameParsedCreateMismatch": {
+			InputFile: &File{
+				IsNew: true,
+			},
+			Line: "--- a/dir/file.txt\n",
+			Err:  true,
+		},
 		"newFileName": {
 			Line: "+++ b/dir/file.txt\n",
 			OutputFile: &File{
 				NewName: "dir/file.txt",
 			},
+		},
+		"newFileNameDevNull": {
+			InputFile: &File{
+				IsDelete: true,
+			},
+			Line: "+++ /dev/null\n",
+			OutputFile: &File{
+				IsDelete: true,
+			},
+		},
+		"newFileNameInconsistent": {
+			InputFile: &File{
+				NewName: "dir/foo.txt",
+			},
+			Line: "+++ b/dir/bar.txt\n",
+			Err:  true,
+		},
+		"newFileNameExistingDeleteMismatch": {
+			InputFile: &File{
+				NewName:  "dir/foo.txt",
+				IsDelete: true,
+			},
+			Line: "+++ /dev/null\n",
+			Err:  true,
+		},
+		"newFileNameParsedDeleteMismatch": {
+			InputFile: &File{
+				IsDelete: true,
+			},
+			Line: "+++ b/dir/file.txt\n",
+			Err:  true,
 		},
 		"oldMode": {
 			Line: "old mode 100644\n",

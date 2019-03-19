@@ -315,11 +315,11 @@ func parseGitHeaderOldName(f *File, line, defaultName string) error {
 	if err != nil {
 		return err
 	}
-	if err := verifyName(name, f.OldName, f.IsNew, "old"); err != nil {
-		return err
+	if f.OldName == "" && !f.IsNew {
+		f.OldName = name
+		return nil
 	}
-	f.OldName = name
-	return nil
+	return verifyGitHeaderName(name, f.OldName, f.IsNew, "old")
 }
 
 func parseGitHeaderNewName(f *File, line, defaultName string) error {
@@ -327,11 +327,11 @@ func parseGitHeaderNewName(f *File, line, defaultName string) error {
 	if err != nil {
 		return err
 	}
-	if err := verifyName(name, f.NewName, f.IsDelete, "new"); err != nil {
-		return err
+	if f.NewName == "" && !f.IsDelete {
+		f.NewName = name
+		return nil
 	}
-	f.NewName = name
-	return nil
+	return verifyGitHeaderName(name, f.NewName, f.IsDelete, "new")
 }
 
 func parseGitHeaderOldMode(f *File, line, defaultName string) (err error) {
@@ -423,8 +423,10 @@ func parseMode(s string) (os.FileMode, error) {
 // unquoted and term is non-negative, parsing stops at the first occurance of
 // term. Otherwise parsing of unquoted names stops at the first space or tab.
 //
-// If dropPrefix is greater than zero, that number of prefix components
-// separated by forward slashes are dropped from the name.
+// If the name is exactly "/dev/null", no further processing occurs. Otherwise,
+// if dropPrefix is greater than zero, that number of prefix components
+// separated by forward slashes are dropped from the name and any duplicate
+// slashes are collapsed.
 func parseName(s string, term rune, dropPrefix int) (name string, n int, err error) {
 	if len(s) > 0 && s[0] == '"' {
 		// find matching end quote and then unquote the section
@@ -455,14 +457,18 @@ func parseName(s string, term rune, dropPrefix int) (name string, n int, err err
 		}
 		name = s[:n]
 	}
+
+	if name == devNull {
+		return name, n, nil
+	}
 	return cleanName(name, dropPrefix), n, nil
 }
 
-// verifyName checks parsed names against state set by previous header lines
-func verifyName(parsed, existing string, isNull bool, side string) error {
+// verifyGitHeaderName checks a parsed name against state set by previous lines
+func verifyGitHeaderName(parsed, existing string, isNull bool, side string) error {
 	if existing != "" {
 		if isNull {
-			return fmt.Errorf("expected %s, got %s", devNull, existing)
+			return fmt.Errorf("expected %s, but filename is set to %s", devNull, existing)
 		}
 		if existing != parsed {
 			return fmt.Errorf("inconsistent %s filename", side)
