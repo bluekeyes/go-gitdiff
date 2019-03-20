@@ -291,24 +291,24 @@ func TestParseGitHeaderData(t *testing.T) {
 		"indexFullSHA1AndMode": {
 			Line: "index 79c6d7f7b7e76c75b3d238f12fb1323f2333ba14..04fab916d8f938173cbb8b93469855f0e838f098 100644\n",
 			OutputFile: &File{
-				OldOID:  "79c6d7f7b7e76c75b3d238f12fb1323f2333ba14",
-				NewOID:  "04fab916d8f938173cbb8b93469855f0e838f098",
-				OldMode: os.FileMode(0100644),
+				OldOIDPrefix: "79c6d7f7b7e76c75b3d238f12fb1323f2333ba14",
+				NewOIDPrefix: "04fab916d8f938173cbb8b93469855f0e838f098",
+				OldMode:      os.FileMode(0100644),
 			},
 		},
 		"indexFullSHA1NoMode": {
 			Line: "index 79c6d7f7b7e76c75b3d238f12fb1323f2333ba14..04fab916d8f938173cbb8b93469855f0e838f098\n",
 			OutputFile: &File{
-				OldOID: "79c6d7f7b7e76c75b3d238f12fb1323f2333ba14",
-				NewOID: "04fab916d8f938173cbb8b93469855f0e838f098",
+				OldOIDPrefix: "79c6d7f7b7e76c75b3d238f12fb1323f2333ba14",
+				NewOIDPrefix: "04fab916d8f938173cbb8b93469855f0e838f098",
 			},
 		},
 		"indexAbbrevSHA1AndMode": {
 			Line: "index 79c6d7..04fab9 100644\n",
 			OutputFile: &File{
-				OldOID:  "79c6d7",
-				NewOID:  "04fab9",
-				OldMode: os.FileMode(0100644),
+				OldOIDPrefix: "79c6d7",
+				NewOIDPrefix: "04fab9",
+				OldMode:      os.FileMode(0100644),
 			},
 		},
 		"indexInvalid": {

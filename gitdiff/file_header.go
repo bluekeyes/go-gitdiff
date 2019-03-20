@@ -161,13 +161,17 @@ func parseGitHeaderScore(f *File, line, defaultName string) error {
 func parseGitHeaderIndex(f *File, line, defaultName string) error {
 	const sep = ".."
 
+	// note that git stops parsing if the OIDs are too long to be valid
+	// checking this requires knowing if the repository uses SHA1 or SHA256
+	// hashes, which we don't know, so we just skip that check
+
 	parts := strings.SplitN(line, " ", 2)
 	oids := strings.SplitN(parts[0], sep, 2)
 
 	if len(oids) < 2 {
 		return fmt.Errorf("invalid index line: missing %q", sep)
 	}
-	f.OldOID, f.NewOID = oids[0], oids[1]
+	f.OldOIDPrefix, f.NewOIDPrefix = oids[0], oids[1]
 
 	if len(parts) > 1 {
 		return parseGitHeaderOldMode(f, parts[1], defaultName)

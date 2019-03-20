@@ -18,9 +18,9 @@ type File struct {
 	OldMode os.FileMode
 	NewMode os.FileMode
 
-	OldOID string
-	NewOID string
-	Score  int
+	OldOIDPrefix string
+	NewOIDPrefix string
+	Score        int
 
 	Fragments []*Fragment
 }

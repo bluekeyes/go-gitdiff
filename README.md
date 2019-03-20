@@ -46,6 +46,6 @@ In development, most functionality is currently missing, incomplete, or broken.
    Unicode file names are handled; these are bugs, so please report any issues
    of this type.
 
-3. When reading headers, object IDs are always loaded from `index` lines,
-   regardless of their length. Git calls these fields `{new,old}_oid_prefix`
-   but appears to only load full-length OIDs, ignoring abbreviations.
+3. When reading headers, this library does not validate that OIDs present on an
+   `index` line are shorter than or equal to the maximum hash length, as this
+   requires knowing if the repository used SHA1 or SHA256 hashes.
