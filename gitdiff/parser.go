@@ -252,7 +252,7 @@ func parseGitHeaderName(header string) (string, error) {
 		return "", err
 	}
 
-	if header[n] == ' ' || header[n] == '\t' {
+	if n < len(header) && (header[n] == ' ' || header[n] == '\t') {
 		n++
 	}
 

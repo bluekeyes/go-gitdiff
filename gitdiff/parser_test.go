@@ -288,6 +288,10 @@ func TestParseGitHeaderData(t *testing.T) {
 			Line: "--- a/dir/file.txt\n",
 			Err:  true,
 		},
+		"oldFileNameMissing": {
+			Line: "--- \n",
+			Err:  true,
+		},
 		"newFileName": {
 			Line: "+++ b/dir/file.txt\n",
 			OutputFile: &File{
@@ -323,6 +327,10 @@ func TestParseGitHeaderData(t *testing.T) {
 				IsDelete: true,
 			},
 			Line: "+++ b/dir/file.txt\n",
+			Err:  true,
+		},
+		"newFileNameMissing": {
+			Line: "+++ \n",
 			Err:  true,
 		},
 		"oldMode": {
@@ -403,6 +411,10 @@ func TestParseGitHeaderData(t *testing.T) {
 				Score: 0,
 			},
 		},
+		"similarityIndexInvalid": {
+			Line: "similarity index 12ab\n",
+			Err:  true,
+		},
 		"indexFullSHA1AndMode": {
 			Line: "index 79c6d7f7b7e76c75b3d238f12fb1323f2333ba14..04fab916d8f938173cbb8b93469855f0e838f098 100644\n",
 			OutputFile: &File{
@@ -425,6 +437,10 @@ func TestParseGitHeaderData(t *testing.T) {
 				NewOID:  "04fab9",
 				OldMode: os.FileMode(0100644),
 			},
+		},
+		"indexInvalid": {
+			Line: "index 79c6d7f7b7e76c75b3d238f12fb1323f2333ba14\n",
+			Err:  true,
 		},
 	}
 
@@ -451,6 +467,50 @@ func TestParseGitHeaderData(t *testing.T) {
 			}
 			if end != test.End {
 				t.Errorf("incorrect end state, expected %t, actual %t", test.End, end)
+			}
+		})
+	}
+}
+
+func TestParseGitHeaderName(t *testing.T) {
+	tests := map[string]struct {
+		Input  string
+		Output string
+		Err    bool
+	}{
+		"twoMatchingNames": {
+			Input:  "a/dir/file.txt b/dir/file.txt",
+			Output: "dir/file.txt",
+		},
+		"twoDifferentNames": {
+			Input:  "a/dir/foo.txt b/dir/bar.txt",
+			Output: "",
+		},
+		"missingSecondName": {
+			Input: "a/dir/foo.txt",
+			Err:   true,
+		},
+		"invalidName": {
+			Input: `"a/dir/file.txt b/dir/file.txt`,
+			Err:   true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			output, err := parseGitHeaderName(test.Input)
+			if test.Err {
+				if err == nil {
+					t.Fatalf("expected error parsing header name, but got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error parsing header name: %v", err)
+			}
+
+			if output != test.Output {
+				t.Errorf("incorrect output: expected %q, actual %q", test.Output, output)
 			}
 		})
 	}
