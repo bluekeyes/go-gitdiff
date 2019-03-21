@@ -72,6 +72,9 @@ func TestParseName(t *testing.T) {
 		"devNull": {
 			Input: "/dev/null", Term: '\t', Drop: 1, Output: "/dev/null", N: 9,
 		},
+		"newlineAlwaysSeparates": {
+			Input: "dir/file.txt\n", Term: 0, Output: "dir/file.txt", N: 12,
+		},
 		"emptyString": {
 			Input: "", Err: true,
 		},

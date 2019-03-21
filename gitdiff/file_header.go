@@ -199,39 +199,51 @@ func parseMode(s string) (os.FileMode, error) {
 // slashes are collapsed.
 func parseName(s string, term rune, dropPrefix int) (name string, n int, err error) {
 	if len(s) > 0 && s[0] == '"' {
-		// find matching end quote and then unquote the section
-		for n = 1; n < len(s); n++ {
-			if s[n] == '"' && s[n-1] != '\\' {
-				n++
-				break
-			}
-		}
-		if n == 2 {
-			return "", 0, fmt.Errorf("missing name")
-		}
-		if name, err = strconv.Unquote(s[:n]); err != nil {
-			return "", 0, err
-		}
+		name, n, err = parseQuotedName(s)
 	} else {
-		// find terminator and take the previous section
-		for n = 0; n < len(s); n++ {
-			if term >= 0 && rune(s[n]) == term {
-				break
-			}
-			if term < 0 && (s[n] == ' ' || s[n] == '\t') {
-				break
-			}
-		}
-		if n == 0 {
-			return "", 0, fmt.Errorf("missing name")
-		}
-		name = s[:n]
+		name, n, err = parseUnquotedName(s, term)
 	}
-
+	if err != nil {
+		return "", 0, err
+	}
 	if name == devNull {
 		return name, n, nil
 	}
 	return cleanName(name, dropPrefix), n, nil
+}
+
+func parseQuotedName(s string) (name string, n int, err error) {
+	for n = 1; n < len(s); n++ {
+		if s[n] == '"' && s[n-1] != '\\' {
+			n++
+			break
+		}
+	}
+	if n == 2 {
+		return "", 0, fmt.Errorf("missing name")
+	}
+	if name, err = strconv.Unquote(s[:n]); err != nil {
+		return "", 0, err
+	}
+	return name, n, err
+}
+
+func parseUnquotedName(s string, term rune) (name string, n int, err error) {
+	for n = 0; n < len(s); n++ {
+		if s[n] == '\n' {
+			break
+		}
+		if term >= 0 && rune(s[n]) == term {
+			break
+		}
+		if term < 0 && (s[n] == ' ' || s[n] == '\t') {
+			break
+		}
+	}
+	if n == 0 {
+		return "", 0, fmt.Errorf("missing name")
+	}
+	return s[:n], n, nil
 }
 
 // verifyGitHeaderName checks a parsed name against state set by previous lines
