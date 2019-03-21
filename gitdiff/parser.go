@@ -137,7 +137,9 @@ func (p *parser) ParseGitFileHeader(f *File, header string) error {
 
 	for {
 		line, err := p.PeekLine()
-		if err != nil {
+		if err == io.EOF {
+			break
+		} else if err != nil {
 			return err
 		}
 

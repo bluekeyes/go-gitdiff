@@ -136,11 +136,12 @@ func TestParseGitFileHeader(t *testing.T) {
 		Output *File
 		Err    bool
 	}{
-		"simpleFileChange": {
+		"fileContentChange": {
 			Input: `diff --git a/dir/file.txt b/dir/file.txt
 index 1c23fcc..40a1b33 100644
 --- a/dir/file.txt
 +++ b/dir/file.txt
+@@ -2,3 +4,5 @@
 `,
 			Output: &File{
 				OldName:      "dir/file.txt",
@@ -150,7 +151,7 @@ index 1c23fcc..40a1b33 100644
 				NewOIDPrefix: "40a1b33",
 			},
 		},
-		"fileCreation": {
+		"newFile": {
 			Input: `diff --git a/dir/file.txt b/dir/file.txt
 new file mode 100644
 index 0000000..f5711e4
@@ -165,6 +166,101 @@ index 0000000..f5711e4
 				IsNew:        true,
 			},
 		},
+		"newEmptyFile": {
+			Input: `diff --git a/empty.txt b/empty.txt
+new file mode 100644
+index 0000000..e69de29
+`,
+			Output: &File{
+				NewName:      "empty.txt",
+				NewMode:      os.FileMode(0100644),
+				OldOIDPrefix: "0000000",
+				NewOIDPrefix: "e69de29",
+				IsNew:        true,
+			},
+		},
+		"deleteFile": {
+			Input: `diff --git a/dir/file.txt b/dir/file.txt
+deleted file mode 100644
+index 44cc321..0000000
+--- a/dir/file.txt
++++ /dev/null
+`,
+			Output: &File{
+				OldName:      "dir/file.txt",
+				OldMode:      os.FileMode(0100644),
+				OldOIDPrefix: "44cc321",
+				NewOIDPrefix: "0000000",
+				IsDelete:     true,
+			},
+		},
+		"changeMode": {
+			Input: `diff --git a/file.sh b/file.sh
+old mode 100644
+new mode 100755
+`,
+			Output: &File{
+				OldName: "file.sh",
+				NewName: "file.sh",
+				OldMode: os.FileMode(0100644),
+				NewMode: os.FileMode(0100755),
+			},
+		},
+		"rename": {
+			Input: `diff --git a/foo.txt b/bar.txt
+similarity index 100%
+rename from foo.txt
+rename to bar.txt
+`,
+			Output: &File{
+				OldName:  "foo.txt",
+				NewName:  "bar.txt",
+				Score:    100,
+				IsRename: true,
+			},
+		},
+		"copy": {
+			Input: `diff --git a/file.txt b/copy.txt
+similarity index 100%
+copy from file.txt
+copy to copy.txt
+`,
+			Output: &File{
+				OldName: "file.txt",
+				NewName: "copy.txt",
+				Score:   100,
+				IsCopy:  true,
+			},
+		},
+		"missingDefaultFilename": {
+			Input: `diff --git a/foo.sh b/bar.sh
+old mode 100644
+new mode 100755
+`,
+			Err: true,
+		},
+		"missingNewFilename": {
+			Input: `diff --git a/file.txt b/file.txt
+index 1c23fcc..40a1b33 100644
+--- a/file.txt
+`,
+			Err: true,
+		},
+		"missingOldFilename": {
+			Input: `diff --git a/file.txt b/file.txt
+index 1c23fcc..40a1b33 100644
++++ b/file.txt
+`,
+			Err: true,
+		},
+		"invalidHeaderLine": {
+			Input: `diff --git a/file.txt b/file.txt
+index deadbeef
+--- a/file.txt
++++ b/file.txt
+`,
+			Err: true,
+		},
 	}
 
 	for name, test := range tests {
@@ -176,13 +272,16 @@ index 0000000..f5711e4
 			err := p.ParseGitFileHeader(&f, header)
 			if test.Err {
 				if err == nil {
-					t.Fatalf("expected error parsing git header, got nil")
+					t.Fatalf("expected error parsing git file header, got nil")
 				}
 				return
 			}
+			if err != nil {
+				t.Fatalf("unexpected error parsing git file header: %v", err)
+			}
 
 			if test.Output != nil && !reflect.DeepEqual(f, *test.Output) {
-				t.Errorf("incorrect file\nexpected: %+v\nactual: %+v", *test.Output, f)
+				t.Errorf("incorrect file\nexpected: %+v\n  actual: %+v", *test.Output, f)
 			}
 		})
 	}
