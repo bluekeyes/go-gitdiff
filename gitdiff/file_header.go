@@ -147,7 +147,7 @@ func parseGitHeaderRenameTo(f *File, line, defaultName string) (err error) {
 }
 
 func parseGitHeaderScore(f *File, line, defaultName string) error {
-	score, err := strconv.ParseInt(line, 10, 32)
+	score, err := strconv.ParseInt(strings.TrimSuffix(line, "%"), 10, 32)
 	if err != nil {
 		nerr := err.(*strconv.NumError)
 		return fmt.Errorf("invalid score line: %v", nerr.Err)

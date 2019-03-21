@@ -276,19 +276,19 @@ func TestParseGitHeaderData(t *testing.T) {
 			},
 		},
 		"similarityIndex": {
-			Line: "similarity index 88\n",
+			Line: "similarity index 88%\n",
 			OutputFile: &File{
 				Score: 88,
 			},
 		},
 		"similarityIndexTooBig": {
-			Line: "similarity index 9001\n",
+			Line: "similarity index 9001%\n",
 			OutputFile: &File{
 				Score: 0,
 			},
 		},
 		"similarityIndexInvalid": {
-			Line: "similarity index 12ab\n",
+			Line: "similarity index 12ab%\n",
 			Err:  true,
 		},
 		"indexFullSHA1AndMode": {
