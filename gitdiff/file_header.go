@@ -2,11 +2,84 @@ package gitdiff
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 )
+
+func (p *parser) ParseGitFileHeader(f *File, header string) error {
+	header = strings.TrimPrefix(header, fileHeaderPrefix)
+	defaultName, err := parseGitHeaderName(header)
+	if err != nil {
+		return p.Errorf("git file header: %v", err)
+	}
+
+	for {
+		line, err := p.PeekLine()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+
+		end, err := parseGitHeaderData(f, line, defaultName)
+		if err != nil {
+			return p.Errorf("git file header: %v", err)
+		}
+		if end {
+			break
+		}
+		p.Line()
+	}
+
+	if f.OldName == "" && f.NewName == "" {
+		if defaultName == "" {
+			return p.Errorf("git file header: missing filename information")
+		}
+		f.OldName = defaultName
+		f.NewName = defaultName
+	}
+
+	if (f.NewName == "" && !f.IsDelete) || (f.OldName == "" && !f.IsNew) {
+		return p.Errorf("git file header: missing filename information")
+	}
+
+	return nil
+}
+
+func (p *parser) ParseTraditionalFileHeader(f *File, oldLine, newLine string) error {
+	oldName, _, err := parseName(strings.TrimPrefix(oldLine, oldFilePrefix), '\t', 0)
+	if err != nil {
+		return p.Errorf("file header: %v", err)
+	}
+
+	newName, _, err := parseName(strings.TrimPrefix(newLine, newFilePrefix), '\t', 0)
+	if err != nil {
+		return p.Errorf("file header: %v", err)
+	}
+
+	switch {
+	case oldName == devNull || hasEpochTimestamp(oldLine):
+		f.IsNew = true
+		f.NewName = newName
+	case newName == devNull || hasEpochTimestamp(newLine):
+		f.IsDelete = true
+		f.OldName = oldName
+	default:
+		// if old name is a prefix of new name, use that instead
+		// this avoids picking variants like "file.bak" or "file~"
+		if strings.HasPrefix(newName, oldName) {
+			f.OldName = oldName
+			f.NewName = oldName
+		} else {
+			f.OldName = newName
+			f.NewName = newName
+		}
+	}
+	return nil
+}
 
 // parseGitHeaderName extracts a default file name from the Git file header
 // line. This is required for mode-only changes and creation/deletion of empty
