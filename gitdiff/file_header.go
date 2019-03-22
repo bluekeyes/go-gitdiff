@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // parseGitHeaderName extracts a default file name from the Git file header
@@ -279,4 +280,33 @@ func cleanName(name string, drop int) string {
 		b.WriteByte(name[i])
 	}
 	return b.String()
+}
+
+// hasEpochTimestamp returns true if the string ends with a POSIX-formatted
+// timestamp for the UNIX epoch after a tab character. According to git, this
+// is used by GNU diff to mark creations and deletions.
+func hasEpochTimestamp(s string) bool {
+	const posixTimeLayout = "2006-01-02 15:04:05.9 -0700"
+
+	start := strings.IndexRune(s, '\t')
+	if start < 0 {
+		return false
+	}
+
+	ts := strings.TrimSuffix(s[start+1:], "\n")
+
+	// a valid timestamp can have optional ':' in zone specifier
+	// remove that if it exists so we have a single format
+	if ts[len(ts)-3] == ':' {
+		ts = ts[:len(ts)-3] + ts[len(ts)-2:]
+	}
+
+	t, err := time.Parse(posixTimeLayout, ts)
+	if err != nil {
+		return false
+	}
+	if !t.Equal(time.Unix(0, 0)) {
+		return false
+	}
+	return true
 }

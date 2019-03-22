@@ -391,3 +391,52 @@ func TestParseGitHeaderName(t *testing.T) {
 		})
 	}
 }
+
+func TestHasEpochTimestamp(t *testing.T) {
+	tests := map[string]struct {
+		Input  string
+		Output bool
+	}{
+		"utcTimestamp": {
+			Input:  "+++ file.txt\t1970-01-01 00:00:00 +0000\n",
+			Output: true,
+		},
+		"utcZoneWithColon": {
+			Input:  "+++ file.txt\t1970-01-01 00:00:00 +00:00\n",
+			Output: true,
+		},
+		"utcZoneWithMilliseconds": {
+			Input:  "+++ file.txt\t1970-01-01 00:00:00.000000 +00:00\n",
+			Output: true,
+		},
+		"westTimestamp": {
+			Input:  "+++ file.txt\t1969-12-31 16:00:00 -0800\n",
+			Output: true,
+		},
+		"eastTimestamp": {
+			Input:  "+++ file.txt\t1970-01-01 04:00:00 +0400\n",
+			Output: true,
+		},
+		"noTab": {
+			Input:  "+++ file.txt 1970-01-01 00:00:00 +0000\n",
+			Output: false,
+		},
+		"invalidFormat": {
+			Input:  "+++ file.txt\t1970-01-01T00:00:00Z\n",
+			Output: false,
+		},
+		"notEpoch": {
+			Input:  "+++ file.txt\t2019-03-21 12:34:56.789 -0700\n",
+			Output: false,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			output := hasEpochTimestamp(test.Input)
+			if output != test.Output {
+				t.Errorf("incorrect output: expected %t, actual %t", test.Output, output)
+			}
+		})
+	}
+}

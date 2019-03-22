@@ -286,3 +286,83 @@ index deadbeef
 		})
 	}
 }
+
+func TestParseTraditionalFileHeader(t *testing.T) {
+	tests := map[string]struct {
+		OldLine string
+		NewLine string
+		Output  *File
+		Err     bool
+	}{
+		"fileContentChange": {
+			OldLine: "--- dir/file_old.txt\t2019-03-21 23:00:00.0 -0700\n",
+			NewLine: "+++ dir/file_new.txt\t2019-03-21 23:30:00.0 -0700\n",
+			Output: &File{
+				OldName: "dir/file_new.txt",
+				NewName: "dir/file_new.txt",
+			},
+		},
+		"newFile": {
+			OldLine: "--- /dev/null\t1969-12-31 17:00:00.0 -0700\n",
+			NewLine: "+++ dir/file.txt\t2019-03-21 23:30:00.0 -0700\n",
+			Output: &File{
+				NewName: "dir/file.txt",
+				IsNew:   true,
+			},
+		},
+		"newFileTimestamp": {
+			OldLine: "--- dir/file.txt\t1969-12-31 17:00:00.0 -0700\n",
+			NewLine: "+++ dir/file.txt\t2019-03-21 23:30:00.0 -0700\n",
+			Output: &File{
+				NewName: "dir/file.txt",
+				IsNew:   true,
+			},
+		},
+		"deleteFile": {
+			OldLine: "--- dir/file.txt\t2019-03-21 23:30:00.0 -0700\n",
+			NewLine: "+++ /dev/null\t1969-12-31 17:00:00.0 -0700\n",
+			Output: &File{
+				OldName:  "dir/file.txt",
+				IsDelete: true,
+			},
+		},
+		"deleteFileTimestamp": {
+			OldLine: "--- dir/file.txt\t2019-03-21 23:30:00.0 -0700\n",
+			NewLine: "+++ dir/file.txt\t1969-12-31 17:00:00.0 -0700\n",
+			Output: &File{
+				OldName:  "dir/file.txt",
+				IsDelete: true,
+			},
+		},
+		"useShortestPrefixName": {
+			OldLine: "--- dir/file.txt\t2019-03-21 23:00:00.0 -0700\n",
+			NewLine: "+++ dir/file.txt~\t2019-03-21 23:30:00.0 -0700\n",
+			Output: &File{
+				OldName: "dir/file.txt",
+				NewName: "dir/file.txt",
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			p := &parser{r: bufio.NewReader(strings.NewReader(""))}
+
+			var f File
+			err := p.ParseTraditionalFileHeader(&f, test.OldLine, test.NewLine)
+			if test.Err {
+				if err == nil {
+					t.Fatalf("expected error parsing traditional file header, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error parsing traditional file header: %v", err)
+			}
+
+			if test.Output != nil && !reflect.DeepEqual(f, *test.Output) {
+				t.Errorf("incorrect file\nexpected: %+v\n  actual: %+v", *test.Output, f)
+			}
+		})
+	}
+}

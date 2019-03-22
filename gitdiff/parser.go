@@ -36,6 +36,10 @@ func Parse(r io.Reader) (files []*File, err error) {
 	return files, nil
 }
 
+// TODO(bkeyes): consider exporting the parser type with configuration
+// this would enable OID validation, p-value guessing, and prefix stripping
+// by allowing users to set or override defaults
+
 type parser struct {
 	r        *bufio.Reader
 	lineno   int64
@@ -168,8 +172,36 @@ func (p *parser) ParseGitFileHeader(f *File, header string) error {
 	return nil
 }
 
-func (p *parser) ParseTraditionalFileHeader(f *File, oldFile, newFile string) error {
-	panic("TODO(bkeyes): unimplemented")
+func (p *parser) ParseTraditionalFileHeader(f *File, oldLine, newLine string) error {
+	oldName, _, err := parseName(strings.TrimPrefix(oldLine, oldFilePrefix), '\t', 0)
+	if err != nil {
+		return p.Errorf("file header: %v", err)
+	}
+
+	newName, _, err := parseName(strings.TrimPrefix(newLine, newFilePrefix), '\t', 0)
+	if err != nil {
+		return p.Errorf("file header: %v", err)
+	}
+
+	switch {
+	case oldName == devNull || hasEpochTimestamp(oldLine):
+		f.IsNew = true
+		f.NewName = newName
+	case newName == devNull || hasEpochTimestamp(newLine):
+		f.IsDelete = true
+		f.OldName = oldName
+	default:
+		// if old name is a prefix of new name, use that instead
+		// this avoids picking variants like "file.bak" or "file~"
+		if strings.HasPrefix(newName, oldName) {
+			f.OldName = oldName
+			f.NewName = oldName
+		} else {
+			f.OldName = newName
+			f.NewName = newName
+		}
+	}
+	return nil
 }
 
 // Line reads and returns the next line. The first call to Line after a call to
@@ -197,6 +229,7 @@ func (p *parser) PeekLine() (line string, err error) {
 }
 
 // Errorf generates an error and appends the current line information.
+// TODO(bkeyes): add linedelta to allow changing lineno per-error
 func (p *parser) Errorf(msg string, args ...interface{}) error {
 	return fmt.Errorf("gitdiff: line %d: %s", p.lineno, fmt.Sprintf(msg, args...))
 }

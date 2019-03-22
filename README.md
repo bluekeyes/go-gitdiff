@@ -37,7 +37,7 @@ In development, most functionality is currently missing, incomplete, or broken.
 ## Known Issues and Differences From Git
 
 1. Certain types of invalid input that I believe are accepted by `git apply`
-   generate errors in this library. These include:
+   generate errors. These include:
 
    - Numbers immediately followed by non-numeric characters
    - Trailing characters on a line after valid or expected content
@@ -46,6 +46,10 @@ In development, most functionality is currently missing, incomplete, or broken.
    Unicode file names are handled; these are bugs, so please report any issues
    of this type.
 
-3. When reading headers, this library does not validate that OIDs present on an
-   `index` line are shorter than or equal to the maximum hash length, as this
-   requires knowing if the repository used SHA1 or SHA256 hashes.
+3. When reading headers, there is no validation that OIDs present on an `index`
+   line are shorter than or equal to the maximum hash length, as this requires
+   knowing if the repository used SHA1 or SHA256 hashes.
+
+4. When reading "traditional" patches (those not produced by `git`), prefixes
+   are not stripped from file names (`git apply` attempts to remove prefixes
+   that match the current repository directory/prefix.)
