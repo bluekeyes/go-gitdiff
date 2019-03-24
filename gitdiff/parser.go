@@ -85,7 +85,7 @@ func (p *parser) ParseNextFileHeader() (file *File, err error) {
 				// not a valid header, nothing to worry about
 				continue
 			}
-			return nil, p.Errorf("patch fragment without header: %s", line)
+			return nil, p.Errorf(0, "patch fragment without header: %s", line)
 		}
 
 		// check for a git-generated patch
@@ -157,9 +157,8 @@ func (p *parser) PeekLine() (line string, err error) {
 }
 
 // Errorf generates an error and appends the current line information.
-// TODO(bkeyes): add linedelta to allow changing lineno per-error
-func (p *parser) Errorf(msg string, args ...interface{}) error {
-	return fmt.Errorf("gitdiff: line %d: %s", p.lineno, fmt.Sprintf(msg, args...))
+func (p *parser) Errorf(delta int64, msg string, args ...interface{}) error {
+	return fmt.Errorf("gitdiff: line %d: %s", p.lineno+delta, fmt.Sprintf(msg, args...))
 }
 
 func isMaybeFragmentHeader(line string) bool {

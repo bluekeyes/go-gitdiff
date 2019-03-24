@@ -13,7 +13,7 @@ func (p *parser) ParseGitFileHeader(f *File, header string) error {
 	header = strings.TrimPrefix(header, fileHeaderPrefix)
 	defaultName, err := parseGitHeaderName(header)
 	if err != nil {
-		return p.Errorf("git file header: %v", err)
+		return p.Errorf(0, "git file header: %v", err)
 	}
 
 	for {
@@ -26,7 +26,7 @@ func (p *parser) ParseGitFileHeader(f *File, header string) error {
 
 		end, err := parseGitHeaderData(f, line, defaultName)
 		if err != nil {
-			return p.Errorf("git file header: %v", err)
+			return p.Errorf(1, "git file header: %v", err)
 		}
 		if end {
 			break
@@ -36,14 +36,14 @@ func (p *parser) ParseGitFileHeader(f *File, header string) error {
 
 	if f.OldName == "" && f.NewName == "" {
 		if defaultName == "" {
-			return p.Errorf("git file header: missing filename information")
+			return p.Errorf(0, "git file header: missing filename information")
 		}
 		f.OldName = defaultName
 		f.NewName = defaultName
 	}
 
 	if (f.NewName == "" && !f.IsDelete) || (f.OldName == "" && !f.IsNew) {
-		return p.Errorf("git file header: missing filename information")
+		return p.Errorf(0, "git file header: missing filename information")
 	}
 
 	return nil
@@ -52,12 +52,12 @@ func (p *parser) ParseGitFileHeader(f *File, header string) error {
 func (p *parser) ParseTraditionalFileHeader(f *File, oldLine, newLine string) error {
 	oldName, _, err := parseName(strings.TrimPrefix(oldLine, oldFilePrefix), '\t', 0)
 	if err != nil {
-		return p.Errorf("file header: %v", err)
+		return p.Errorf(-1, "file header: %v", err)
 	}
 
 	newName, _, err := parseName(strings.TrimPrefix(newLine, newFilePrefix), '\t', 0)
 	if err != nil {
-		return p.Errorf("file header: %v", err)
+		return p.Errorf(0, "file header: %v", err)
 	}
 
 	switch {
