@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -54,11 +53,6 @@ const (
 	newFilePrefix    = "+++ "
 
 	devNull = "/dev/null"
-)
-
-var (
-	// TODO(bkeyes): are the boundary conditions necessary?
-	fragmentHeaderRegexp = regexp.MustCompile(`^@@ -(\d+),(\d+) \+(\d+)(?:,(\d+))? @@.*\n`)
 )
 
 // ParseNextFileHeader finds and parses the next file header in the stream. It
@@ -166,38 +160,52 @@ func isMaybeFragmentHeader(line string) bool {
 	return len(line) >= len(shortestValidHeader) && strings.HasPrefix(line, fragmentHeaderPrefix)
 }
 
-func parseFragmentHeader(f *Fragment, header string) error {
-	// TODO(bkeyes): use strings.FieldsFunc instead of regexp
-	match := fragmentHeaderRegexp.FindStringSubmatch(header)
-	if len(match) < 5 {
+// TODO(bkeyes): fix duplication with isMaybeFragmentHeader
+func parseFragmentHeader(f *Fragment, header string) (err error) {
+	const startMark = "@@ "
+	const endMark = " @@"
+
+	parts := strings.SplitAfterN(header, endMark, 2)
+	if len(parts) < 2 || !strings.HasPrefix(parts[0], startMark) || !strings.HasSuffix(parts[0], endMark) {
 		return fmt.Errorf("invalid fragment header")
 	}
 
-	parseInt := func(s string, v *int64) (err error) {
-		if *v, err = strconv.ParseInt(s, 10, 64); err != nil {
-			nerr := err.(*strconv.NumError)
-			return fmt.Errorf("invalid fragment header value: %s: %v", s, nerr.Err)
-		}
-		return
+	header = parts[0][len(startMark) : len(parts[0])-len(endMark)]
+	f.Comment = strings.TrimSpace(parts[1])
+
+	ranges := strings.Split(header, " ")
+	if len(ranges) != 2 {
+		return fmt.Errorf("invalid fragment header")
 	}
 
-	if err := parseInt(match[1], &f.OldPosition); err != nil {
-		return err
+	if !strings.HasPrefix(ranges[0], "-") || !strings.HasPrefix(ranges[1], "+") {
+		return fmt.Errorf("invalid fragment header: bad range marker")
 	}
-	if err := parseInt(match[2], &f.OldLines); err != nil {
-		return err
+	if f.OldPosition, f.OldLines, err = parseRange(ranges[0][1:]); err != nil {
+		return fmt.Errorf("invalid fragment header: %v", err)
 	}
-
-	if err := parseInt(match[3], &f.NewPosition); err != nil {
-		return err
+	if f.NewPosition, f.NewLines, err = parseRange(ranges[1][1:]); err != nil {
+		return fmt.Errorf("invalid fragment header: %v", err)
 	}
-
-	f.NewLines = 1
-	if match[4] != "" {
-		if err := parseInt(match[4], &f.NewLines); err != nil {
-			return err
-		}
-	}
-
 	return nil
+}
+
+func parseRange(s string) (start int64, end int64, err error) {
+	parts := strings.SplitN(s, ",", 2)
+
+	if start, err = strconv.ParseInt(parts[0], 10, 64); err != nil {
+		nerr := err.(*strconv.NumError)
+		return 0, 0, fmt.Errorf("bad start of range: %s: %v", parts[0], nerr.Err)
+	}
+
+	if len(parts) > 1 {
+		if end, err = strconv.ParseInt(parts[1], 10, 64); err != nil {
+			nerr := err.(*strconv.NumError)
+			return 0, 0, fmt.Errorf("bad end of range: %s: %v", parts[1], nerr.Err)
+		}
+	} else {
+		end = 1
+	}
+
+	return
 }

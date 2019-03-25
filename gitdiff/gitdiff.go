@@ -27,6 +27,8 @@ type File struct {
 
 // Fragment describes changed lines starting at a specific line in a text file.
 type Fragment struct {
+	Comment string
+
 	OldPosition int64
 	OldLines    int64
 

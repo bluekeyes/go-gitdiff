@@ -89,9 +89,10 @@ func TestParseFragmentHeader(t *testing.T) {
 				NewLines:    9,
 			},
 		},
-		"trailingWhitespace": {
-			Input: "@@ -21,5 +28,9 @@ \r\n",
+		"trailingComment": {
+			Input: "@@ -21,5 +28,9 @@ func test(n int) {\n",
 			Output: &Fragment{
+				Comment:     "func test(n int) {",
 				OldPosition: 21,
 				OldLines:    5,
 				NewPosition: 28,
