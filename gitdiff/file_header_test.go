@@ -144,10 +144,10 @@ index deadbeef
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			p := &parser{r: bufio.NewReader(strings.NewReader(test.Input))}
-			header, _ := p.Line()
+			p.Next()
 
 			var f File
-			err := p.ParseGitFileHeader(&f, header)
+			err := p.ParseGitFileHeader(&f, p.Line())
 			if test.Err {
 				if err == nil {
 					t.Fatalf("expected error parsing git file header, got nil")

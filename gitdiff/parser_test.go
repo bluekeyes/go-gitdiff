@@ -17,19 +17,21 @@ func TestLineOperations(t *testing.T) {
 	t.Run("readLine", func(t *testing.T) {
 		p := newParser()
 
-		line, err := p.Line()
-		if err != nil {
-			t.Fatalf("error reading first line: %v", err)
+		if err := p.Next(); err != nil {
+			t.Fatalf("error advancing parser: %v", err)
 		}
+
+		line := p.Line()
 		if line != "the first line\n" {
 			t.Fatalf("incorrect first line: %s", line)
 		}
 
-		line, err = p.Line()
-		if err != nil {
-			t.Fatalf("error reading second line: %v", err)
+		if err := p.Next(); err != nil {
+			t.Fatalf("error advancing parser: %v", err)
 		}
-		if line != "the second line\n" {
+
+		line = p.Line()
+		if p.Line() != "the second line\n" {
 			t.Fatalf("incorrect second line: %s", line)
 		}
 	})
@@ -37,29 +39,22 @@ func TestLineOperations(t *testing.T) {
 	t.Run("peekLine", func(t *testing.T) {
 		p := newParser()
 
-		line, err := p.PeekLine()
-		if err != nil {
-			t.Fatalf("error peeking line: %v", err)
-		}
-		if line != "the first line\n" {
-			t.Fatalf("incorrect peek line: %s", line)
+		if err := p.Next(); err != nil {
+			t.Fatalf("error advancing parser: %v", err)
 		}
 
-		// test that a second peek returns the same value
-		line, err = p.PeekLine()
-		if err != nil {
-			t.Fatalf("error peeking line: %v", err)
-		}
-		if line != "the first line\n" {
+		line := p.PeekLine()
+		if line != "the second line\n" {
 			t.Fatalf("incorrect peek line: %s", line)
 		}
 
 		// test that reading the line returns the same value
-		line, err = p.Line()
-		if err != nil {
-			t.Fatalf("error reading line: %v", err)
+		if err := p.Next(); err != nil {
+			t.Fatalf("error advancing parser: %v", err)
 		}
-		if line != "the first line\n" {
+
+		line = p.Line()
+		if line != "the second line\n" {
 			t.Fatalf("incorrect line: %s", line)
 		}
 	})

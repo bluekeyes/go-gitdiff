@@ -16,15 +16,8 @@ func (p *parser) ParseGitFileHeader(f *File, header string) error {
 		return p.Errorf(0, "git file header: %v", err)
 	}
 
-	for {
-		line, err := p.PeekLine()
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-
-		end, err := parseGitHeaderData(f, line, defaultName)
+	for err = p.Next(); err == nil; err = p.Next() {
+		end, err := parseGitHeaderData(f, p.Line(), defaultName)
 		if err != nil {
 			return p.Errorf(1, "git file header: %v", err)
 		}
@@ -32,6 +25,9 @@ func (p *parser) ParseGitFileHeader(f *File, header string) error {
 			break
 		}
 		p.Line()
+	}
+	if err != nil && err != io.EOF {
+		return err
 	}
 
 	if f.OldName == "" && f.NewName == "" {

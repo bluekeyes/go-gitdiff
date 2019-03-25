@@ -40,9 +40,11 @@ func Parse(r io.Reader) (files []*File, err error) {
 // by allowing users to set or override defaults
 
 type parser struct {
-	r        *bufio.Reader
-	lineno   int64
-	nextLine string
+	r *bufio.Reader
+
+	eof    bool
+	lineno int64
+	lines  [2]string
 }
 
 const (
@@ -60,17 +62,8 @@ const (
 func (p *parser) ParseNextFileHeader() (file *File, err error) {
 	// based on find_header() in git/apply.c
 
-	defer func() {
-		if err == io.EOF && file == nil {
-			err = nil
-		}
-	}()
-
-	for {
-		line, err := p.Line()
-		if err != io.EOF {
-			return nil, err
-		}
+	for err = p.Next(); err == nil; err = p.Next() {
+		line := p.Line()
 
 		// check for disconnected fragment headers (corrupt patch)
 		if isMaybeFragmentHeader(line) {
@@ -91,23 +84,17 @@ func (p *parser) ParseNextFileHeader() (file *File, err error) {
 			return file, nil
 		}
 
-		next, err := p.PeekLine()
-		if err != nil {
-			return nil, err
-		}
-
 		// check for a "traditional" patch
-		if strings.HasPrefix(line, oldFilePrefix) && strings.HasPrefix(next, newFilePrefix) {
-			oldFileLine := line
-			newFileLine, _ := p.Line()
-
-			next, err := p.PeekLine()
-			if err != nil {
+		if strings.HasPrefix(line, oldFilePrefix) && strings.HasPrefix(p.PeekLine(), newFilePrefix) {
+			if err = p.Next(); err != nil {
 				return nil, err
 			}
 
+			oldFileLine := line
+			newFileLine := p.Line()
+
 			// only a file header if followed by a (probable) unified fragment header
-			if !isMaybeFragmentHeader(next) {
+			if !isMaybeFragmentHeader(p.PeekLine()) {
 				continue
 			}
 
@@ -118,6 +105,11 @@ func (p *parser) ParseNextFileHeader() (file *File, err error) {
 			return file, nil
 		}
 	}
+
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	return file, nil
 }
 
 // ParseFileChanges parses file changes until the next file header or the end
@@ -126,28 +118,48 @@ func (p *parser) ParseFileChanges(f *File) error {
 	panic("TODO(bkeyes): unimplemented")
 }
 
-// Line reads and returns the next line. The first call to Line after a call to
-// PeekLine will never retrun an error.
-func (p *parser) Line() (line string, err error) {
-	if p.nextLine != "" {
-		line = p.nextLine
-		p.nextLine = ""
-	} else {
-		line, err = p.r.ReadString('\n')
+// Next advances the parser by one line. It returns any error encountered while
+// reading the line, including io.EOF when the end of stream is reached.
+func (p *parser) Next() error {
+	if p.eof {
+		p.lines[0] = ""
+		return io.EOF
 	}
+
+	if p.lineno == 0 {
+		// on the first call, need extra shift to initialize both slots
+		if err := p.shiftLines(); err != nil && err != io.EOF {
+			return err
+		}
+	}
+
+	err := p.shiftLines()
+	if err == io.EOF {
+		p.eof = p.lines[1] == ""
+	} else if err != nil {
+		return err
+	}
+
 	p.lineno++
+	return nil
+}
+
+func (p *parser) shiftLines() (err error) {
+	p.lines[0] = p.lines[1]
+	p.lines[1], err = p.r.ReadString('\n')
 	return
 }
 
-// PeekLine reads and returns the next line without advancing the parser.
-func (p *parser) PeekLine() (line string, err error) {
-	if p.nextLine != "" {
-		line = p.nextLine
-	} else {
-		line, err = p.r.ReadString('\n')
-	}
-	p.nextLine = line
-	return
+// Line returns the current line or an empty string if Next has returned io.EOF.
+func (p *parser) Line() string {
+	return p.lines[0]
+}
+
+// PeekLine returns the line following the current line or an empty string if
+// the current line is the final line. If PeekLine returns an empty string,
+// Next will return io.EOF on the next call.
+func (p *parser) PeekLine() string {
+	return p.lines[1]
 }
 
 // Errorf generates an error and appends the current line information.
