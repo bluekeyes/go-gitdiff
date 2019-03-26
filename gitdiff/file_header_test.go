@@ -139,6 +139,13 @@ index deadbeef
 `,
 			Err: true,
 		},
+		"notGitHeader": {
+			Input: `--- file.txt
++++ file.txt
+@@ -0,0 +1 @@
+`,
+			Output: nil,
+		},
 	}
 
 	for name, test := range tests {
@@ -146,8 +153,7 @@ index deadbeef
 			p := &parser{r: bufio.NewReader(strings.NewReader(test.Input))}
 			p.Next()
 
-			var f File
-			err := p.ParseGitFileHeader(&f, p.Line(0))
+			f, err := p.ParseGitFileHeader()
 			if test.Err {
 				if err == nil {
 					t.Fatalf("expected error parsing git file header, got nil")
@@ -158,8 +164,8 @@ index deadbeef
 				t.Fatalf("unexpected error parsing git file header: %v", err)
 			}
 
-			if test.Output != nil && !reflect.DeepEqual(f, *test.Output) {
-				t.Errorf("incorrect file\nexpected: %+v\n  actual: %+v", *test.Output, f)
+			if !reflect.DeepEqual(test.Output, f) {
+				t.Errorf("incorrect file\nexpected: %+v\n  actual: %+v", test.Output, f)
 			}
 		})
 	}
@@ -167,67 +173,93 @@ index deadbeef
 
 func TestParseTraditionalFileHeader(t *testing.T) {
 	tests := map[string]struct {
-		OldLine string
-		NewLine string
-		Output  *File
-		Err     bool
+		Input  string
+		Output *File
+		Err    bool
 	}{
 		"fileContentChange": {
-			OldLine: "--- dir/file_old.txt\t2019-03-21 23:00:00.0 -0700\n",
-			NewLine: "+++ dir/file_new.txt\t2019-03-21 23:30:00.0 -0700\n",
+			Input: `--- dir/file_old.txt	2019-03-21 23:00:00.0 -0700
++++ dir/file_new.txt	2019-03-21 23:30:00.0 -0700
+@@ -0,0 +1 @@
+`,
 			Output: &File{
 				OldName: "dir/file_new.txt",
 				NewName: "dir/file_new.txt",
 			},
 		},
 		"newFile": {
-			OldLine: "--- /dev/null\t1969-12-31 17:00:00.0 -0700\n",
-			NewLine: "+++ dir/file.txt\t2019-03-21 23:30:00.0 -0700\n",
+			Input: `--- /dev/null	1969-12-31 17:00:00.0 -0700
++++ dir/file.txt	2019-03-21 23:30:00.0 -0700
+@@ -0,0 +1 @@
+`,
 			Output: &File{
 				NewName: "dir/file.txt",
 				IsNew:   true,
 			},
 		},
 		"newFileTimestamp": {
-			OldLine: "--- dir/file.txt\t1969-12-31 17:00:00.0 -0700\n",
-			NewLine: "+++ dir/file.txt\t2019-03-21 23:30:00.0 -0700\n",
+			Input: `--- dir/file.txt	1969-12-31 17:00:00.0 -0700
++++ dir/file.txt	2019-03-21 23:30:00.0 -0700
+@@ -0,0 +1 @@
+`,
 			Output: &File{
 				NewName: "dir/file.txt",
 				IsNew:   true,
 			},
 		},
 		"deleteFile": {
-			OldLine: "--- dir/file.txt\t2019-03-21 23:30:00.0 -0700\n",
-			NewLine: "+++ /dev/null\t1969-12-31 17:00:00.0 -0700\n",
+			Input: `--- dir/file.txt	2019-03-21 23:30:00.0 -0700
++++ /dev/null	1969-12-31 17:00:00.0 -0700
+@@ -0,0 +1 @@
+`,
 			Output: &File{
 				OldName:  "dir/file.txt",
 				IsDelete: true,
 			},
 		},
 		"deleteFileTimestamp": {
-			OldLine: "--- dir/file.txt\t2019-03-21 23:30:00.0 -0700\n",
-			NewLine: "+++ dir/file.txt\t1969-12-31 17:00:00.0 -0700\n",
+			Input: `--- dir/file.txt	2019-03-21 23:30:00.0 -0700
++++ dir/file.txt	1969-12-31 17:00:00.0 -0700
+@@ -0,0 +1 @@
+`,
 			Output: &File{
 				OldName:  "dir/file.txt",
 				IsDelete: true,
 			},
 		},
 		"useShortestPrefixName": {
-			OldLine: "--- dir/file.txt\t2019-03-21 23:00:00.0 -0700\n",
-			NewLine: "+++ dir/file.txt~\t2019-03-21 23:30:00.0 -0700\n",
+			Input: `--- dir/file.txt	2019-03-21 23:00:00.0 -0700
++++ dir/file.txt~	2019-03-21 23:30:00.0 -0700
+@@ -0,0 +1 @@
+`,
 			Output: &File{
 				OldName: "dir/file.txt",
 				NewName: "dir/file.txt",
 			},
 		},
+		"notTraditionalHeader": {
+			Input: `diff --git a/dir/file.txt b/dir/file.txt
+--- a/dir/file.txt
++++ b/dir/file.txt
+`,
+			Output: nil,
+		},
+		"noUnifiedFragment": {
+			Input: `--- dir/file_old.txt	2019-03-21 23:00:00.0 -0700
++++ dir/file_new.txt	2019-03-21 23:30:00.0 -0700
+context line
++added line
+`,
+			Output: nil,
+		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			p := &parser{r: bufio.NewReader(strings.NewReader(""))}
+			p := &parser{r: bufio.NewReader(strings.NewReader(test.Input))}
+			p.Next()
 
-			var f File
-			err := p.ParseTraditionalFileHeader(&f, test.OldLine, test.NewLine)
+			f, err := p.ParseTraditionalFileHeader()
 			if test.Err {
 				if err == nil {
 					t.Fatalf("expected error parsing traditional file header, got nil")
@@ -238,8 +270,8 @@ func TestParseTraditionalFileHeader(t *testing.T) {
 				t.Fatalf("unexpected error parsing traditional file header: %v", err)
 			}
 
-			if test.Output != nil && !reflect.DeepEqual(f, *test.Output) {
-				t.Errorf("incorrect file\nexpected: %+v\n  actual: %+v", *test.Output, f)
+			if !reflect.DeepEqual(test.Output, f) {
+				t.Errorf("incorrect file\nexpected: %+v\n  actual: %+v", test.Output, f)
 			}
 		})
 	}

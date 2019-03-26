@@ -47,65 +47,46 @@ type parser struct {
 	lines  [3]string
 }
 
-const (
-	fragmentHeaderPrefix = "@@ -"
-
-	fileHeaderPrefix = "diff --git "
-	oldFilePrefix    = "--- "
-	newFilePrefix    = "+++ "
-
-	devNull = "/dev/null"
-)
-
 // ParseNextFileHeader finds and parses the next file header in the stream. It
 // returns nil if no headers are found before the end of the stream.
-func (p *parser) ParseNextFileHeader() (file *File, err error) {
-	// based on find_header() in git/apply.c
-
-	for err = p.Next(); err == nil; err = p.Next() {
-		line := p.Line(0)
+func (p *parser) ParseNextFileHeader() (*File, error) {
+	for {
+		if err := p.Next(); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
 
 		// check for disconnected fragment headers (corrupt patch)
-		if isMaybeFragmentHeader(line) {
-			var frag Fragment
-			if err := parseFragmentHeader(&frag, line); err != nil {
-				// not a valid header, nothing to worry about
-				continue
-			}
-			return nil, p.Errorf(0, "patch fragment without header: %s", line)
+		frag, err := p.ParseFragmentHeader()
+		if err != nil {
+			// not a valid header, nothing to worry about
+			continue
+		}
+		if frag != nil {
+			return nil, p.Errorf(0, "patch fragment without header: %s", p.Line(0))
 		}
 
 		// check for a git-generated patch
-		if strings.HasPrefix(line, fileHeaderPrefix) {
-			file = new(File)
-			if err := p.ParseGitFileHeader(file, line); err != nil {
-				return nil, err
-			}
+		file, err := p.ParseGitFileHeader()
+		if err != nil {
+			return nil, err
+		}
+		if file != nil {
 			return file, nil
 		}
 
 		// check for a "traditional" patch
-		if strings.HasPrefix(line, oldFilePrefix) && strings.HasPrefix(p.Line(1), newFilePrefix) {
-			oldFileLine := line
-			newFileLine := p.Line(1)
-
-			// only a file header if followed by a (probable) unified fragment header
-			if !isMaybeFragmentHeader(p.Line(2)) {
-				continue
-			}
-
-			file = new(File)
-			if err := p.ParseTraditionalFileHeader(file, oldFileLine, newFileLine); err != nil {
-				return nil, err
-			}
+		file, err = p.ParseTraditionalFileHeader()
+		if err != nil {
+			return nil, err
+		}
+		if file != nil {
 			return file, nil
 		}
 	}
-
-	if err != nil && err != io.EOF {
-		return nil, err
-	}
-	return file, nil
+	return nil, nil
 }
 
 // ParseFileChanges parses file changes until the next file header or the end
@@ -164,39 +145,39 @@ func (p *parser) Errorf(delta int64, msg string, args ...interface{}) error {
 	return fmt.Errorf("gitdiff: line %d: %s", p.lineno+delta, fmt.Sprintf(msg, args...))
 }
 
-func isMaybeFragmentHeader(line string) bool {
-	const shortestValidHeader = "@@ -0,0 +1 @@\n"
-	return len(line) >= len(shortestValidHeader) && strings.HasPrefix(line, fragmentHeaderPrefix)
-}
+func (p *parser) ParseFragmentHeader() (*Fragment, error) {
+	const (
+		startMark = "@@ -"
+		endMark   = " @@"
+	)
 
-// TODO(bkeyes): fix duplication with isMaybeFragmentHeader
-func parseFragmentHeader(f *Fragment, header string) (err error) {
-	const startMark = "@@ "
-	const endMark = " @@"
-
-	parts := strings.SplitAfterN(header, endMark, 2)
-	if len(parts) < 2 || !strings.HasPrefix(parts[0], startMark) || !strings.HasSuffix(parts[0], endMark) {
-		return fmt.Errorf("invalid fragment header")
+	if !strings.HasPrefix(p.Line(0), startMark) {
+		return nil, nil
 	}
 
-	header = parts[0][len(startMark) : len(parts[0])-len(endMark)]
+	parts := strings.SplitAfterN(p.Line(0), endMark, 2)
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("invalid fragment header")
+	}
+
+	f := &Fragment{}
 	f.Comment = strings.TrimSpace(parts[1])
 
-	ranges := strings.Split(header, " ")
+	header := parts[0][len(startMark) : len(parts[0])-len(endMark)]
+	ranges := strings.Split(header, " +")
 	if len(ranges) != 2 {
-		return fmt.Errorf("invalid fragment header")
+		return nil, fmt.Errorf("invalid fragment header")
 	}
 
-	if !strings.HasPrefix(ranges[0], "-") || !strings.HasPrefix(ranges[1], "+") {
-		return fmt.Errorf("invalid fragment header: bad range marker")
+	var err error
+	if f.OldPosition, f.OldLines, err = parseRange(ranges[0]); err != nil {
+		return nil, fmt.Errorf("invalid fragment header: %v", err)
 	}
-	if f.OldPosition, f.OldLines, err = parseRange(ranges[0][1:]); err != nil {
-		return fmt.Errorf("invalid fragment header: %v", err)
+	if f.NewPosition, f.NewLines, err = parseRange(ranges[1]); err != nil {
+		return nil, fmt.Errorf("invalid fragment header: %v", err)
 	}
-	if f.NewPosition, f.NewLines, err = parseRange(ranges[1][1:]); err != nil {
-		return fmt.Errorf("invalid fragment header: %v", err)
-	}
-	return nil
+
+	return f, nil
 }
 
 func parseRange(s string) (start int64, end int64, err error) {

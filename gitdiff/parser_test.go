@@ -119,8 +119,10 @@ func TestParseFragmentHeader(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			var frag Fragment
-			err := parseFragmentHeader(&frag, test.Input)
+			p := &parser{r: bufio.NewReader(strings.NewReader(test.Input))}
+			p.Next()
+
+			frag, err := p.ParseFragmentHeader()
 			if test.Err {
 				if err == nil {
 					t.Fatalf("expected error parsing header, but got nil")
@@ -131,8 +133,8 @@ func TestParseFragmentHeader(t *testing.T) {
 				t.Fatalf("error parsing header: %v", err)
 			}
 
-			if !reflect.DeepEqual(*test.Output, frag) {
-				t.Fatalf("incorrect fragment\nexpected: %+v\nactual: %+v", *test.Output, frag)
+			if !reflect.DeepEqual(test.Output, frag) {
+				t.Fatalf("incorrect fragment\nexpected: %+v\nactual: %+v", test.Output, frag)
 			}
 		})
 	}

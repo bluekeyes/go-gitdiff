@@ -9,52 +9,84 @@ import (
 	"time"
 )
 
-func (p *parser) ParseGitFileHeader(f *File, header string) error {
-	header = strings.TrimPrefix(header, fileHeaderPrefix)
+const (
+	devNull = "/dev/null"
+)
+
+func (p *parser) ParseGitFileHeader() (*File, error) {
+	const prefix = "diff --git "
+
+	if !strings.HasPrefix(p.Line(0), prefix) {
+		return nil, nil
+	}
+	header := p.Line(0)[len(prefix):]
+
 	defaultName, err := parseGitHeaderName(header)
 	if err != nil {
-		return p.Errorf(0, "git file header: %v", err)
+		return nil, p.Errorf(0, "git file header: %v", err)
 	}
 
-	for err = p.Next(); err == nil; err = p.Next() {
+	f := &File{}
+	for {
+		if err := p.Next(); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+
 		end, err := parseGitHeaderData(f, p.Line(0), defaultName)
 		if err != nil {
-			return p.Errorf(1, "git file header: %v", err)
+			return nil, p.Errorf(1, "git file header: %v", err)
 		}
 		if end {
 			break
 		}
 	}
-	if err != nil && err != io.EOF {
-		return err
-	}
 
 	if f.OldName == "" && f.NewName == "" {
 		if defaultName == "" {
-			return p.Errorf(0, "git file header: missing filename information")
+			return nil, p.Errorf(0, "git file header: missing filename information")
 		}
 		f.OldName = defaultName
 		f.NewName = defaultName
 	}
 
 	if (f.NewName == "" && !f.IsDelete) || (f.OldName == "" && !f.IsNew) {
-		return p.Errorf(0, "git file header: missing filename information")
+		return nil, p.Errorf(0, "git file header: missing filename information")
 	}
 
-	return nil
+	return f, nil
 }
 
-func (p *parser) ParseTraditionalFileHeader(f *File, oldLine, newLine string) error {
-	oldName, _, err := parseName(strings.TrimPrefix(oldLine, oldFilePrefix), '\t', 0)
-	if err != nil {
-		return p.Errorf(-1, "file header: %v", err)
+func (p *parser) ParseTraditionalFileHeader() (*File, error) {
+	const shortestValidFragHeader = "@@ -0,0 +1 @@\n"
+	const (
+		oldPrefix = "--- "
+		newPrefix = "+++ "
+	)
+
+	oldLine, newLine := p.Line(0), p.Line(1)
+
+	if !strings.HasPrefix(oldLine, oldPrefix) || !strings.HasPrefix(newLine, newPrefix) {
+		return nil, nil
+	}
+	// heuristic: only a file header if followed by a (probable) fragment header
+	if len(p.Line(2)) < len(shortestValidFragHeader) || !strings.HasPrefix(p.Line(2), "@@ -") {
+		return nil, nil
 	}
 
-	newName, _, err := parseName(strings.TrimPrefix(newLine, newFilePrefix), '\t', 0)
+	oldName, _, err := parseName(oldLine[len(oldPrefix):], '\t', 0)
 	if err != nil {
-		return p.Errorf(0, "file header: %v", err)
+		return nil, p.Errorf(0, "file header: %v", err)
 	}
 
+	newName, _, err := parseName(newLine[len(newPrefix):], '\t', 0)
+	if err != nil {
+		return nil, p.Errorf(1, "file header: %v", err)
+	}
+
+	f := &File{}
 	switch {
 	case oldName == devNull || hasEpochTimestamp(oldLine):
 		f.IsNew = true
@@ -73,7 +105,7 @@ func (p *parser) ParseTraditionalFileHeader(f *File, oldLine, newLine string) er
 			f.NewName = newName
 		}
 	}
-	return nil
+	return f, nil
 }
 
 // parseGitHeaderName extracts a default file name from the Git file header
@@ -115,9 +147,9 @@ func parseGitHeaderData(f *File, line, defaultName string) (end bool, err error)
 		end    bool
 		parse  func(*File, string, string) error
 	}{
-		{fragmentHeaderPrefix, true, nil},
-		{oldFilePrefix, false, parseGitHeaderOldName},
-		{newFilePrefix, false, parseGitHeaderNewName},
+		{"@@ -", true, nil},
+		{"--- ", false, parseGitHeaderOldName},
+		{"+++ ", false, parseGitHeaderNewName},
 		{"old mode ", false, parseGitHeaderOldMode},
 		{"new mode ", false, parseGitHeaderNewMode},
 		{"deleted file mode ", false, parseGitHeaderDeletedMode},
