@@ -147,7 +147,7 @@ index deadbeef
 			p.Next()
 
 			var f File
-			err := p.ParseGitFileHeader(&f, p.Line())
+			err := p.ParseGitFileHeader(&f, p.Line(0))
 			if test.Err {
 				if err == nil {
 					t.Fatalf("expected error parsing git file header, got nil")

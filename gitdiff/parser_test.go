@@ -2,6 +2,7 @@ package gitdiff
 
 import (
 	"bufio"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -14,14 +15,14 @@ func TestLineOperations(t *testing.T) {
 		return &parser{r: bufio.NewReader(strings.NewReader(content))}
 	}
 
-	t.Run("readLine", func(t *testing.T) {
+	t.Run("read", func(t *testing.T) {
 		p := newParser()
 
 		if err := p.Next(); err != nil {
 			t.Fatalf("error advancing parser: %v", err)
 		}
 
-		line := p.Line()
+		line := p.Line(0)
 		if line != "the first line\n" {
 			t.Fatalf("incorrect first line: %s", line)
 		}
@@ -30,30 +31,42 @@ func TestLineOperations(t *testing.T) {
 			t.Fatalf("error advancing parser: %v", err)
 		}
 
-		line = p.Line()
-		if p.Line() != "the second line\n" {
+		line = p.Line(0)
+		if line != "the second line\n" {
 			t.Fatalf("incorrect second line: %s", line)
+		}
+
+		if err := p.Next(); err != nil {
+			t.Fatalf("error advancing parser: %v", err)
+		}
+
+		line = p.Line(0)
+		if line != "the third line\n" {
+			t.Fatalf("incorrect third line: %s", line)
+		}
+
+		if err := p.Next(); err != io.EOF {
+			t.Fatalf("expected EOF, but got: %v", err)
 		}
 	})
 
-	t.Run("peekLine", func(t *testing.T) {
+	t.Run("peek", func(t *testing.T) {
 		p := newParser()
 
 		if err := p.Next(); err != nil {
 			t.Fatalf("error advancing parser: %v", err)
 		}
 
-		line := p.PeekLine()
+		line := p.Line(1)
 		if line != "the second line\n" {
 			t.Fatalf("incorrect peek line: %s", line)
 		}
 
-		// test that reading the line returns the same value
 		if err := p.Next(); err != nil {
 			t.Fatalf("error advancing parser: %v", err)
 		}
 
-		line = p.Line()
+		line = p.Line(0)
 		if line != "the second line\n" {
 			t.Fatalf("incorrect line: %s", line)
 		}

@@ -44,7 +44,7 @@ type parser struct {
 
 	eof    bool
 	lineno int64
-	lines  [2]string
+	lines  [3]string
 }
 
 const (
@@ -63,7 +63,7 @@ func (p *parser) ParseNextFileHeader() (file *File, err error) {
 	// based on find_header() in git/apply.c
 
 	for err = p.Next(); err == nil; err = p.Next() {
-		line := p.Line()
+		line := p.Line(0)
 
 		// check for disconnected fragment headers (corrupt patch)
 		if isMaybeFragmentHeader(line) {
@@ -85,16 +85,12 @@ func (p *parser) ParseNextFileHeader() (file *File, err error) {
 		}
 
 		// check for a "traditional" patch
-		if strings.HasPrefix(line, oldFilePrefix) && strings.HasPrefix(p.PeekLine(), newFilePrefix) {
-			if err = p.Next(); err != nil {
-				return nil, err
-			}
-
+		if strings.HasPrefix(line, oldFilePrefix) && strings.HasPrefix(p.Line(1), newFilePrefix) {
 			oldFileLine := line
-			newFileLine := p.Line()
+			newFileLine := p.Line(1)
 
 			// only a file header if followed by a (probable) unified fragment header
-			if !isMaybeFragmentHeader(p.PeekLine()) {
+			if !isMaybeFragmentHeader(p.Line(2)) {
 				continue
 			}
 
@@ -127,9 +123,11 @@ func (p *parser) Next() error {
 	}
 
 	if p.lineno == 0 {
-		// on the first call, need extra shift to initialize both slots
-		if err := p.shiftLines(); err != nil && err != io.EOF {
-			return err
+		// on first call to next, need to shift in all lines
+		for i := 0; i < len(p.lines)-1; i++ {
+			if err := p.shiftLines(); err != nil && err != io.EOF {
+				return err
+			}
 		}
 	}
 
@@ -145,21 +143,20 @@ func (p *parser) Next() error {
 }
 
 func (p *parser) shiftLines() (err error) {
-	p.lines[0] = p.lines[1]
-	p.lines[1], err = p.r.ReadString('\n')
+	for i := 0; i < len(p.lines)-1; i++ {
+		p.lines[i] = p.lines[i+1]
+	}
+	p.lines[len(p.lines)-1], err = p.r.ReadString('\n')
 	return
 }
 
-// Line returns the current line or an empty string if Next has returned io.EOF.
-func (p *parser) Line() string {
-	return p.lines[0]
-}
-
-// PeekLine returns the line following the current line or an empty string if
-// the current line is the final line. If PeekLine returns an empty string,
-// Next will return io.EOF on the next call.
-func (p *parser) PeekLine() string {
-	return p.lines[1]
+// Line returns a line from the parser without advancing it. A delta of 0
+// returns the current line, while higher deltas return read-ahead lines. It
+// returns an empty string if the delta is higher than the available lines,
+// either because of the buffer size or because the parser reached the end of
+// the input. Valid lines always contain at least a newline character.
+func (p *parser) Line(delta uint) string {
+	return p.lines[delta]
 }
 
 // Errorf generates an error and appends the current line information.

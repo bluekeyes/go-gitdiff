@@ -17,14 +17,13 @@ func (p *parser) ParseGitFileHeader(f *File, header string) error {
 	}
 
 	for err = p.Next(); err == nil; err = p.Next() {
-		end, err := parseGitHeaderData(f, p.Line(), defaultName)
+		end, err := parseGitHeaderData(f, p.Line(0), defaultName)
 		if err != nil {
 			return p.Errorf(1, "git file header: %v", err)
 		}
 		if end {
 			break
 		}
-		p.Line()
 	}
 	if err != nil && err != io.EOF {
 		return err
