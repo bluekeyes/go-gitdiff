@@ -28,19 +28,19 @@ func (p *parser) ParseGitFileHeader() (*File, error) {
 
 	f := &File{}
 	for {
-		if err := p.Next(); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-
-		end, err := parseGitHeaderData(f, p.Line(0), defaultName)
+		end, err := parseGitHeaderData(f, p.Line(1), defaultName)
 		if err != nil {
 			return nil, p.Errorf(1, "git file header: %v", err)
 		}
 		if end {
 			break
+		}
+
+		if err := p.Next(); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
 		}
 	}
 
@@ -76,6 +76,12 @@ func (p *parser) ParseTraditionalFileHeader() (*File, error) {
 		return nil, nil
 	}
 
+	// advance past the first line so parser is at end of header
+	// no EOF check needed because we know there are >=3 valid lines
+	if err := p.Next(); err != nil {
+		return nil, err
+	}
+
 	oldName, _, err := parseName(oldLine[len(oldPrefix):], '\t', 0)
 	if err != nil {
 		return nil, p.Errorf(0, "file header: %v", err)
@@ -105,6 +111,7 @@ func (p *parser) ParseTraditionalFileHeader() (*File, error) {
 			f.NewName = newName
 		}
 	}
+
 	return f, nil
 }
 
@@ -138,7 +145,7 @@ func parseGitHeaderName(header string) (string, error) {
 // It returns true when header parsing is complete; in that case, line was the
 // first line of non-header content.
 func parseGitHeaderData(f *File, line, defaultName string) (end bool, err error) {
-	if line[len(line)-1] == '\n' {
+	if len(line) > 0 && line[len(line)-1] == '\n' {
 		line = line[:len(line)-1]
 	}
 
