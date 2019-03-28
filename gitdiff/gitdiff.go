@@ -1,6 +1,7 @@
 package gitdiff
 
 import (
+	"fmt"
 	"os"
 )
 
@@ -34,4 +35,9 @@ type Fragment struct {
 
 	NewPosition int64
 	NewLines    int64
+}
+
+// Header returns the cannonical header of this fragment.
+func (f *Fragment) Header() string {
+	return fmt.Sprintf("@@ -%d,%d +%d,%d @@ %s", f.OldPosition, f.OldLines, f.NewPosition, f.NewLines, f.Comment)
 }

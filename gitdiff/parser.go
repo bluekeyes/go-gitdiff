@@ -11,22 +11,27 @@ import (
 // Parse parses a patch with changes for one or more files. Any content
 // preceding the first file header is ignored. If an error occurs while
 // parsing, files will contain all files parsed before the error.
-func Parse(r io.Reader) (files []*File, err error) {
+func Parse(r io.Reader) ([]*File, error) {
 	p := &parser{r: bufio.NewReader(r)}
+	if err := p.Next(); err != nil {
+		if err == io.EOF {
+			return nil, nil
+		}
+		return nil, err
+	}
 
-	var file *File
+	var files []*File
 	for {
-		file, err = p.ParseNextFileHeader()
+		file, err := p.ParseNextFileHeader()
 		if err != nil {
-			return
+			return files, err
 		}
 		if file == nil {
 			break
 		}
 
-		err = p.ParseFileChanges(file)
-		if err != nil {
-			return
+		if err = p.ParseFragments(file); err != nil {
+			return files, err
 		}
 
 		files = append(files, file)
@@ -39,6 +44,12 @@ func Parse(r io.Reader) (files []*File, err error) {
 // this would enable OID validation, p-value guessing, and prefix stripping
 // by allowing users to set or override defaults
 
+// parser invariants:
+// - methods that parse objects start on the first line of the first object
+// - methods that parse objects return on the first line after the last object
+// - if a parse method returns a nil object, the parser was not advanced
+// - any exported parsing methods must initialize the parser by calling Next()
+
 type parser struct {
 	r *bufio.Reader
 
@@ -50,26 +61,20 @@ type parser struct {
 // ParseNextFileHeader finds and parses the next file header in the stream. It
 // returns nil if no headers are found before the end of the stream.
 func (p *parser) ParseNextFileHeader() (*File, error) {
+	var file *File
 	for {
-		if err := p.Next(); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-
 		// check for disconnected fragment headers (corrupt patch)
 		frag, err := p.ParseFragmentHeader()
 		if err != nil {
 			// not a valid header, nothing to worry about
-			continue
+			goto NextLine
 		}
 		if frag != nil {
-			return nil, p.Errorf(0, "patch fragment without header: %s", p.Line(0))
+			return nil, p.Errorf(-1, "patch fragment without file header: %s", frag.Header())
 		}
 
 		// check for a git-generated patch
-		file, err := p.ParseGitFileHeader()
+		file, err = p.ParseGitFileHeader()
 		if err != nil {
 			return nil, err
 		}
@@ -85,13 +90,21 @@ func (p *parser) ParseNextFileHeader() (*File, error) {
 		if file != nil {
 			return file, nil
 		}
+
+	NextLine:
+		if err := p.Next(); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
 	}
 	return nil, nil
 }
 
-// ParseFileChanges parses file changes until the next file header or the end
-// of the stream and attaches them to the given file.
-func (p *parser) ParseFileChanges(f *File) error {
+// ParseFragments parses fragments until the next file header or the end of the
+// stream and attaches them to the given file.
+func (p *parser) ParseFragments(f *File) error {
 	panic("TODO(bkeyes): unimplemented")
 }
 
@@ -177,6 +190,9 @@ func (p *parser) ParseFragmentHeader() (*Fragment, error) {
 		return nil, fmt.Errorf("invalid fragment header: %v", err)
 	}
 
+	if err := p.Next(); err != nil && err != io.EOF {
+		return nil, err
+	}
 	return f, nil
 }
 

@@ -32,15 +32,16 @@ func (p *parser) ParseGitFileHeader() (*File, error) {
 		if err != nil {
 			return nil, p.Errorf(1, "git file header: %v", err)
 		}
-		if end {
-			break
-		}
 
 		if err := p.Next(); err != nil {
 			if err == io.EOF {
 				break
 			}
 			return nil, err
+		}
+
+		if end {
+			break
 		}
 	}
 
@@ -76,8 +77,11 @@ func (p *parser) ParseTraditionalFileHeader() (*File, error) {
 		return nil, nil
 	}
 
-	// advance past the first line so parser is at end of header
+	// advance past the first two lines so parser is after the header
 	// no EOF check needed because we know there are >=3 valid lines
+	if err := p.Next(); err != nil {
+		return nil, err
+	}
 	if err := p.Next(); err != nil {
 		return nil, err
 	}

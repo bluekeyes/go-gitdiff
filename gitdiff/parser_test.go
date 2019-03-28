@@ -73,6 +73,66 @@ func TestLineOperations(t *testing.T) {
 	})
 }
 
+func TestParserAdvancment(t *testing.T) {
+	tests := map[string]struct {
+		Input   string
+		Parse   func(p *parser) error
+		EndLine string
+	}{
+		"ParseGitFileHeader": {
+			Input: `diff --git a/dir/file.txt b/dir/file.txt
+index 9540595..30e6333 100644
+--- a/dir/file.txt
++++ b/dir/file.txt
+@@ -1,2 +1,3 @@
+context line
+`,
+			Parse: func(p *parser) error {
+				_, err := p.ParseGitFileHeader()
+				return err
+			},
+			EndLine: "@@ -1,2 +1,3 @@\n",
+		},
+		"ParseTraditionalFileHeader": {
+			Input: `--- dir/file.txt
++++ dir/file.txt
+@@ -1,2 +1,3 @@
+context line
+`,
+			Parse: func(p *parser) error {
+				_, err := p.ParseTraditionalFileHeader()
+				return err
+			},
+			EndLine: "@@ -1,2 +1,3 @@\n",
+		},
+		"ParseFragmentHeader": {
+			Input: `@@ -1,2 +1,3 @@
+context line
+`,
+			Parse: func(p *parser) error {
+				_, err := p.ParseFragmentHeader()
+				return err
+			},
+			EndLine: "context line\n",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			p := &parser{r: bufio.NewReader(strings.NewReader(test.Input))}
+			p.Next()
+
+			if err := test.Parse(p); err != nil {
+				t.Fatalf("unexpected error while parsing: %v", err)
+			}
+
+			if test.EndLine != p.Line(0) {
+				t.Errorf("incorrect position after parsing\nexpected: %q\nactual: %q", test.EndLine, p.Line(0))
+			}
+		})
+	}
+}
+
 func TestParseFragmentHeader(t *testing.T) {
 	tests := map[string]struct {
 		Input  string
