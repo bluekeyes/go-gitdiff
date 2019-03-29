@@ -45,9 +45,11 @@ func Parse(r io.Reader) ([]*File, error) {
 // by allowing users to set or override defaults
 
 // parser invariants:
-// - methods that parse objects start on the first line of the first object
-// - methods that parse objects return on the first line after the last object
-// - if a parse method returns a nil object, the parser was not advanced
+// - methods that parse objects:
+//     - start with the parser on the first line of the first object
+//     - if returning nil, do not advance
+//     - if returning an error, do not advance past the object
+//     - if returning an object, advance to the first line after the object
 // - any exported parsing methods must initialize the parser by calling Next()
 
 type parser struct {
@@ -170,7 +172,7 @@ func (p *parser) ParseFragmentHeader() (*Fragment, error) {
 
 	parts := strings.SplitAfterN(p.Line(0), endMark, 2)
 	if len(parts) < 2 {
-		return nil, fmt.Errorf("invalid fragment header")
+		return nil, p.Errorf(0, "invalid fragment header")
 	}
 
 	f := &Fragment{}
@@ -179,21 +181,74 @@ func (p *parser) ParseFragmentHeader() (*Fragment, error) {
 	header := parts[0][len(startMark) : len(parts[0])-len(endMark)]
 	ranges := strings.Split(header, " +")
 	if len(ranges) != 2 {
-		return nil, fmt.Errorf("invalid fragment header")
+		return nil, p.Errorf(0, "invalid fragment header")
 	}
 
 	var err error
 	if f.OldPosition, f.OldLines, err = parseRange(ranges[0]); err != nil {
-		return nil, fmt.Errorf("invalid fragment header: %v", err)
+		return nil, p.Errorf(0, "invalid fragment header: %v", err)
 	}
 	if f.NewPosition, f.NewLines, err = parseRange(ranges[1]); err != nil {
-		return nil, fmt.Errorf("invalid fragment header: %v", err)
+		return nil, p.Errorf(0, "invalid fragment header: %v", err)
 	}
 
 	if err := p.Next(); err != nil && err != io.EOF {
 		return nil, err
 	}
 	return f, nil
+}
+
+func (p *parser) ParseFragment() (*Fragment, error) {
+	frag, err := p.ParseFragmentHeader()
+	if err != nil {
+		return nil, err
+	}
+	if frag == nil {
+		return nil, nil
+	}
+	if p.Line(0) == "" {
+		return nil, p.Errorf(0, "no content following fragment header")
+	}
+
+	oldLines, newLines := frag.OldLines, frag.NewLines
+	for oldLines > 0 && newLines > 0 {
+		line := p.Line(0)
+		switch line[0] {
+		case '\n':
+			fallthrough // newer GNU diff versions create empty context lines
+		case ' ':
+			oldLines--
+			newLines--
+			frag.Lines = append(frag.Lines, FragmentLine{OpContext, line[1:]})
+		case '-':
+			frag.LinesDeleted++
+			oldLines--
+			frag.Lines = append(frag.Lines, FragmentLine{OpDelete, line[1:]})
+		case '+':
+			frag.LinesAdded++
+			newLines--
+			frag.Lines = append(frag.Lines, FragmentLine{OpAdd, line[1:]})
+		default:
+			// this could be "\ No newline at end of file", which we allow
+			// only check the prefix because the text changes by locale
+			// git also asserts that any translation is at least 12 characters
+			if len(line) >= 12 && strings.HasPrefix("\\ ", line) {
+				break
+			}
+			return nil, p.Errorf(0, "invalid fragment line")
+		}
+
+		if err := p.Next(); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, err
+		}
+	}
+
+	// TODO(bkeyes): verify stuff about the fragment
+
+	return frag, nil
 }
 
 func parseRange(s string) (start int64, end int64, err error) {

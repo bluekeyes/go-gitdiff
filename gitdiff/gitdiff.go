@@ -35,7 +35,30 @@ type Fragment struct {
 
 	NewPosition int64
 	NewLines    int64
+
+	LinesAdded   int64
+	LinesDeleted int64
+
+	Lines []FragmentLine
 }
+
+// FragmentLine is a line in a fragment.
+type FragmentLine struct {
+	Op   LineOp
+	Line string
+}
+
+// LineOp describes the type of a fragment line: context, added, or removed.
+type LineOp int
+
+const (
+	// OpContext indicates a context line
+	OpContext LineOp = iota
+	// OpDelete indicates a deleted line
+	OpDelete
+	// OpAdd indicates an added line
+	OpAdd
+)
 
 // Header returns the cannonical header of this fragment.
 func (f *Fragment) Header() string {
