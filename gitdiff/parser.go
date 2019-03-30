@@ -107,7 +107,29 @@ func (p *parser) ParseNextFileHeader() (*File, error) {
 // ParseFragments parses fragments until the next file header or the end of the
 // stream and attaches them to the given file.
 func (p *parser) ParseFragments(f *File) error {
-	panic("TODO(bkeyes): unimplemented")
+	for {
+		frag, err := p.ParseFragment()
+		if err != nil {
+			return err
+		}
+		if frag == nil {
+			// TODO(bkeyes): this could mean several things:
+			//  - binary patch
+			//  - reached the next file header
+			//  - reached the end of the patch
+			return nil
+		}
+
+		lines := int64(len(frag.Lines) + 1) // +1 for the header
+		if f.IsNew && frag.OldLines > 0 {
+			return p.Errorf(-lines, "new file depends on old contents")
+		}
+		if f.IsDelete && frag.NewLines > 0 {
+			return p.Errorf(-lines, "deleted file still has contents")
+		}
+
+		f.Fragments = append(f.Fragments, frag)
+	}
 }
 
 // Next advances the parser by one line. It returns any error encountered while
@@ -211,7 +233,7 @@ func (p *parser) ParseFragment() (*Fragment, error) {
 	}
 
 	oldLines, newLines := frag.OldLines, frag.NewLines
-	for oldLines > 0 && newLines > 0 {
+	for oldLines > 0 || newLines > 0 {
 		line := p.Line(0)
 		switch line[0] {
 		case '\n':
@@ -219,14 +241,21 @@ func (p *parser) ParseFragment() (*Fragment, error) {
 		case ' ':
 			oldLines--
 			newLines--
+			if frag.LinesAdded == 0 && frag.LinesDeleted == 0 {
+				frag.LeadingContext++
+			} else {
+				frag.TrailingContext++
+			}
 			frag.Lines = append(frag.Lines, FragmentLine{OpContext, line[1:]})
 		case '-':
 			frag.LinesDeleted++
 			oldLines--
+			frag.TrailingContext = 0
 			frag.Lines = append(frag.Lines, FragmentLine{OpDelete, line[1:]})
 		case '+':
 			frag.LinesAdded++
 			newLines--
+			frag.TrailingContext = 0
 			frag.Lines = append(frag.Lines, FragmentLine{OpAdd, line[1:]})
 		default:
 			// this could be "\ No newline at end of file", which we allow
@@ -246,7 +275,9 @@ func (p *parser) ParseFragment() (*Fragment, error) {
 		}
 	}
 
-	// TODO(bkeyes): verify stuff about the fragment
+	if oldLines != 0 || newLines != 0 {
+		return nil, p.Errorf(0, "invalid fragment: remaining lines: %d old, %d new", oldLines, newLines)
+	}
 
 	return frag, nil
 }

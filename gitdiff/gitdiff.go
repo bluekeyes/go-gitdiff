@@ -39,6 +39,9 @@ type Fragment struct {
 	LinesAdded   int64
 	LinesDeleted int64
 
+	LeadingContext  int64
+	TrailingContext int64
+
 	Lines []FragmentLine
 }
 
