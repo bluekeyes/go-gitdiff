@@ -105,12 +105,12 @@ context line
 			},
 			EndLine: "@@ -1,2 +1,3 @@\n",
 		},
-		"ParseFragmentHeader": {
+		"ParseTextFragmentHeader": {
 			Input: `@@ -1,2 +1,3 @@
 context line
 `,
 			Parse: func(p *parser) error {
-				_, err := p.ParseFragmentHeader()
+				_, err := p.ParseTextFragmentHeader()
 				return err
 			},
 			EndLine: "context line\n",
@@ -133,7 +133,7 @@ context line
 	}
 }
 
-func TestParseFragmentHeader(t *testing.T) {
+func TestParseTextFragmentHeader(t *testing.T) {
 	tests := map[string]struct {
 		Input  string
 		Output *Fragment
@@ -182,7 +182,7 @@ func TestParseFragmentHeader(t *testing.T) {
 			p := &parser{r: bufio.NewReader(strings.NewReader(test.Input))}
 			p.Next()
 
-			frag, err := p.ParseFragmentHeader()
+			frag, err := p.ParseTextFragmentHeader()
 			if test.Err {
 				if err == nil {
 					t.Fatalf("expected error parsing header, but got nil")

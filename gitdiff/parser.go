@@ -30,10 +30,19 @@ func Parse(r io.Reader) ([]*File, error) {
 			break
 		}
 
-		if err = p.ParseFragments(file); err != nil {
-			return files, err
+		for _, fn := range []func(*File) (int, error){
+			p.ParseTextFragments,
+			p.ParseBinaryFragment,
+		} {
+			n, err := fn(file)
+			if err != nil {
+				return files, err
+			}
+			if n > 0 {
+				break
+			}
 		}
-
+		// file has fragment(s) from above or the patch is empty or invalid
 		files = append(files, file)
 	}
 
@@ -66,7 +75,7 @@ func (p *parser) ParseNextFileHeader() (*File, error) {
 	var file *File
 	for {
 		// check for disconnected fragment headers (corrupt patch)
-		frag, err := p.ParseFragmentHeader()
+		frag, err := p.ParseTextFragmentHeader()
 		if err != nil {
 			// not a valid header, nothing to worry about
 			goto NextLine
@@ -104,31 +113,32 @@ func (p *parser) ParseNextFileHeader() (*File, error) {
 	return nil, nil
 }
 
-// ParseFragments parses fragments until the next file header or the end of the
-// stream and attaches them to the given file.
-func (p *parser) ParseFragments(f *File) error {
+// ParseTextFragments parses text fragments until the next file header or the
+// end of the stream and attaches them to the given file. It returns the number
+// of fragments that were added.
+func (p *parser) ParseTextFragments(f *File) (n int, err error) {
 	for {
-		frag, err := p.ParseFragment()
+		frag, err := p.ParseTextFragmentHeader()
 		if err != nil {
-			return err
+			return n, err
 		}
 		if frag == nil {
-			// TODO(bkeyes): this could mean several things:
-			//  - binary patch
-			//  - reached the next file header
-			//  - reached the end of the patch
-			return nil
+			return n, nil
 		}
 
-		lines := int64(len(frag.Lines) + 1) // +1 for the header
 		if f.IsNew && frag.OldLines > 0 {
-			return p.Errorf(-lines, "new file depends on old contents")
+			return n, p.Errorf(-1, "new file depends on old contents")
 		}
 		if f.IsDelete && frag.NewLines > 0 {
-			return p.Errorf(-lines, "deleted file still has contents")
+			return n, p.Errorf(-1, "deleted file still has contents")
+		}
+
+		if err := p.ParseTextChunk(frag); err != nil {
+			return n, nil
 		}
 
 		f.Fragments = append(f.Fragments, frag)
+		n++
 	}
 }
 
@@ -182,7 +192,7 @@ func (p *parser) Errorf(delta int64, msg string, args ...interface{}) error {
 	return fmt.Errorf("gitdiff: line %d: %s", p.lineno+delta, fmt.Sprintf(msg, args...))
 }
 
-func (p *parser) ParseFragmentHeader() (*Fragment, error) {
+func (p *parser) ParseTextFragmentHeader() (*Fragment, error) {
 	const (
 		startMark = "@@ -"
 		endMark   = " @@"
@@ -220,16 +230,9 @@ func (p *parser) ParseFragmentHeader() (*Fragment, error) {
 	return f, nil
 }
 
-func (p *parser) ParseFragment() (*Fragment, error) {
-	frag, err := p.ParseFragmentHeader()
-	if err != nil {
-		return nil, err
-	}
-	if frag == nil {
-		return nil, nil
-	}
+func (p *parser) ParseTextChunk(frag *Fragment) error {
 	if p.Line(0) == "" {
-		return nil, p.Errorf(0, "no content following fragment header")
+		return p.Errorf(0, "no content following fragment header")
 	}
 
 	oldLines, newLines := frag.OldLines, frag.NewLines
@@ -250,12 +253,10 @@ func (p *parser) ParseFragment() (*Fragment, error) {
 		case '-':
 			frag.LinesDeleted++
 			oldLines--
-			frag.TrailingContext = 0
 			frag.Lines = append(frag.Lines, FragmentLine{OpDelete, line[1:]})
 		case '+':
 			frag.LinesAdded++
 			newLines--
-			frag.TrailingContext = 0
 			frag.Lines = append(frag.Lines, FragmentLine{OpAdd, line[1:]})
 		default:
 			// this could be "\ No newline at end of file", which we allow
@@ -264,22 +265,25 @@ func (p *parser) ParseFragment() (*Fragment, error) {
 			if len(line) >= 12 && strings.HasPrefix("\\ ", line) {
 				break
 			}
-			return nil, p.Errorf(0, "invalid fragment line")
+			return p.Errorf(0, "invalid fragment line")
 		}
 
 		if err := p.Next(); err != nil {
 			if err == io.EOF {
 				break
 			}
-			return nil, err
+			return err
 		}
 	}
 
 	if oldLines != 0 || newLines != 0 {
-		return nil, p.Errorf(0, "invalid fragment: remaining lines: %d old, %d new", oldLines, newLines)
+		return p.Errorf(0, "invalid fragment: remaining lines: %d old, %d new", oldLines, newLines)
 	}
+	return nil
+}
 
-	return frag, nil
+func (p *parser) ParseBinaryFragment(f *File) (n int, err error) {
+	panic("TODO(bkeyes): unimplemented")
 }
 
 func parseRange(s string) (start int64, end int64, err error) {
