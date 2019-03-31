@@ -21,6 +21,9 @@ func TestLineOperations(t *testing.T) {
 		if err := p.Next(); err != nil {
 			t.Fatalf("error advancing parser: %v", err)
 		}
+		if p.lineno != 1 {
+			t.Fatalf("incorrect line number: expected %d, actual: %d", 1, p.lineno)
+		}
 
 		line := p.Line(0)
 		if line != "the first line\n" {
@@ -29,6 +32,9 @@ func TestLineOperations(t *testing.T) {
 
 		if err := p.Next(); err != nil {
 			t.Fatalf("error advancing parser: %v", err)
+		}
+		if p.lineno != 2 {
+			t.Fatalf("incorrect line number: expected %d, actual: %d", 2, p.lineno)
 		}
 
 		line = p.Line(0)
@@ -39,14 +45,29 @@ func TestLineOperations(t *testing.T) {
 		if err := p.Next(); err != nil {
 			t.Fatalf("error advancing parser: %v", err)
 		}
+		if p.lineno != 3 {
+			t.Fatalf("incorrect line number: expected %d, actual: %d", 3, p.lineno)
+		}
 
 		line = p.Line(0)
 		if line != "the third line\n" {
 			t.Fatalf("incorrect third line: %s", line)
 		}
 
+		// reading after the last line should return EOF
 		if err := p.Next(); err != io.EOF {
 			t.Fatalf("expected EOF, but got: %v", err)
+		}
+		if p.lineno != 4 {
+			t.Fatalf("incorrect line number: expected %d, actual: %d", 4, p.lineno)
+		}
+
+		// reading again returns EOF again and does not advance the line
+		if err := p.Next(); err != io.EOF {
+			t.Fatalf("expected EOF, but got: %v", err)
+		}
+		if p.lineno != 4 {
+			t.Fatalf("incorrect line number: expected %d, actual: %d", 4, p.lineno)
 		}
 	})
 
@@ -69,6 +90,13 @@ func TestLineOperations(t *testing.T) {
 		line = p.Line(0)
 		if line != "the second line\n" {
 			t.Fatalf("incorrect line: %s", line)
+		}
+	})
+
+	t.Run("emptyInput", func(t *testing.T) {
+		p := &parser{r: bufio.NewReader(strings.NewReader(""))}
+		if err := p.Next(); err != io.EOF {
+			t.Fatalf("expected EOF, but got: %v", err)
 		}
 	})
 }

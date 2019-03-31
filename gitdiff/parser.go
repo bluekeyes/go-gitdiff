@@ -146,7 +146,6 @@ func (p *parser) ParseTextFragments(f *File) (n int, err error) {
 // reading the line, including io.EOF when the end of stream is reached.
 func (p *parser) Next() error {
 	if p.eof {
-		p.lines[0] = ""
 		return io.EOF
 	}
 
@@ -160,13 +159,15 @@ func (p *parser) Next() error {
 	}
 
 	err := p.shiftLines()
-	if err == io.EOF {
-		p.eof = p.lines[1] == ""
-	} else if err != nil {
+	if err != nil && err != io.EOF {
 		return err
 	}
 
 	p.lineno++
+	if p.lines[0] == "" {
+		p.eof = true
+		return io.EOF
+	}
 	return nil
 }
 
