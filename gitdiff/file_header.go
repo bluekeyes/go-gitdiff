@@ -61,7 +61,7 @@ func (p *parser) ParseGitFileHeader() (*File, error) {
 }
 
 func (p *parser) ParseTraditionalFileHeader() (*File, error) {
-	const shortestValidFragHeader = "@@ -0,0 +1 @@\n"
+	const shortestValidFragHeader = "@@ -1 +1 @@\n"
 	const (
 		oldPrefix = "--- "
 		newPrefix = "+++ "

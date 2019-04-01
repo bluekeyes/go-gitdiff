@@ -245,8 +245,11 @@ func (p *parser) ParseTextChunk(frag *Fragment) error {
 	oldLines, newLines := frag.OldLines, frag.NewLines
 	for {
 		line := p.Line(0)
-		switch line[0] {
+		op, data := line[0], line[1:]
+
+		switch op {
 		case '\n':
+			data = "\n"
 			fallthrough // newer GNU diff versions create empty context lines
 		case ' ':
 			oldLines--
@@ -256,25 +259,25 @@ func (p *parser) ParseTextChunk(frag *Fragment) error {
 			} else {
 				frag.TrailingContext++
 			}
-			frag.Lines = append(frag.Lines, FragmentLine{OpContext, line[1:]})
+			frag.Lines = append(frag.Lines, FragmentLine{OpContext, data})
 		case '-':
 			oldLines--
 			frag.LinesDeleted++
 			frag.TrailingContext = 0
-			frag.Lines = append(frag.Lines, FragmentLine{OpDelete, line[1:]})
+			frag.Lines = append(frag.Lines, FragmentLine{OpDelete, data})
 		case '+':
 			newLines--
 			frag.LinesAdded++
 			frag.TrailingContext = 0
-			frag.Lines = append(frag.Lines, FragmentLine{OpAdd, line[1:]})
+			frag.Lines = append(frag.Lines, FragmentLine{OpAdd, data})
 		default:
 			// this may appear in middle of fragment if it's for a deleted line
 			if isNoNewlineLine(line) {
-				last := len(frag.Lines) - 1
-				frag.Lines[last].Line = strings.TrimSuffix(frag.Lines[last].Line, "\n")
+				last := &frag.Lines[len(frag.Lines)-1]
+				last.Line = strings.TrimSuffix(last.Line, "\n")
 				break
 			}
-			return p.Errorf(0, "invalid line operation: %q", line[0])
+			return p.Errorf(0, "invalid line operation: %q", op)
 		}
 
 		next := p.Line(1)

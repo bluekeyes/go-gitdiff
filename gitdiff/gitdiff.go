@@ -51,6 +51,10 @@ type FragmentLine struct {
 	Line string
 }
 
+func (fl FragmentLine) String() string {
+	return fl.Op.String() + fl.Line
+}
+
 // LineOp describes the type of a fragment line: context, added, or removed.
 type LineOp int
 
@@ -62,6 +66,18 @@ const (
 	// OpAdd indicates an added line
 	OpAdd
 )
+
+func (op LineOp) String() string {
+	switch op {
+	case OpContext:
+		return " "
+	case OpDelete:
+		return "-"
+	case OpAdd:
+		return "+"
+	}
+	return "?"
+}
 
 // Header returns the cannonical header of this fragment.
 func (f *Fragment) Header() string {

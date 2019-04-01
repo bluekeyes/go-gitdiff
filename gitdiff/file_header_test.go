@@ -1,10 +1,8 @@
 package gitdiff
 
 import (
-	"bufio"
 	"os"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -150,8 +148,7 @@ index deadbeef
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			p := &parser{r: bufio.NewReader(strings.NewReader(test.Input))}
-			p.Next()
+			p := newTestParser(test.Input, true)
 
 			f, err := p.ParseGitFileHeader()
 			if test.Err {
@@ -256,8 +253,7 @@ context line
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			p := &parser{r: bufio.NewReader(strings.NewReader(test.Input))}
-			p.Next()
+			p := newTestParser(test.Input, true)
 
 			f, err := p.ParseTraditionalFileHeader()
 			if test.Err {
