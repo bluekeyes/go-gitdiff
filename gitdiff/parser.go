@@ -236,8 +236,14 @@ func (p *parser) ParseTextChunk(frag *Fragment) error {
 		return p.Errorf(0, "no content following fragment header")
 	}
 
+	isNoNewlineLine := func(s string) bool {
+		// test for "\ No newline at end of file" by prefix because the text
+		// changes by locale (git claims all versions are at least 12 chars)
+		return len(s) >= 12 && s[:2] == "\\ "
+	}
+
 	oldLines, newLines := frag.OldLines, frag.NewLines
-	for oldLines > 0 || newLines > 0 {
+	for {
 		line := p.Line(0)
 		switch line[0] {
 		case '\n':
@@ -252,21 +258,28 @@ func (p *parser) ParseTextChunk(frag *Fragment) error {
 			}
 			frag.Lines = append(frag.Lines, FragmentLine{OpContext, line[1:]})
 		case '-':
-			frag.LinesDeleted++
 			oldLines--
+			frag.LinesDeleted++
+			frag.TrailingContext = 0
 			frag.Lines = append(frag.Lines, FragmentLine{OpDelete, line[1:]})
 		case '+':
-			frag.LinesAdded++
 			newLines--
+			frag.LinesAdded++
+			frag.TrailingContext = 0
 			frag.Lines = append(frag.Lines, FragmentLine{OpAdd, line[1:]})
 		default:
-			// this could be "\ No newline at end of file", which we allow
-			// only check the prefix because the text changes by locale
-			// git also asserts that any translation is at least 12 characters
-			if len(line) >= 12 && strings.HasPrefix("\\ ", line) {
+			// this may appear in middle of fragment if it's for a deleted line
+			if isNoNewlineLine(line) {
+				last := len(frag.Lines) - 1
+				frag.Lines[last].Line = strings.TrimSuffix(frag.Lines[last].Line, "\n")
 				break
 			}
-			return p.Errorf(0, "invalid fragment line")
+			return p.Errorf(0, "invalid line operation: %q", line[0])
+		}
+
+		next := p.Line(1)
+		if oldLines <= 0 && newLines <= 0 && !isNoNewlineLine(next) {
+			break
 		}
 
 		if err := p.Next(); err != nil {
@@ -278,7 +291,12 @@ func (p *parser) ParseTextChunk(frag *Fragment) error {
 	}
 
 	if oldLines != 0 || newLines != 0 {
-		return p.Errorf(0, "invalid fragment: remaining lines: %d old, %d new", oldLines, newLines)
+		hdr := max(frag.OldLines-oldLines, frag.NewLines-newLines) + 1
+		return p.Errorf(-hdr, "fragment header miscounts lines: %+d old, %+d new", -oldLines, -newLines)
+	}
+
+	if err := p.Next(); err != nil && err != io.EOF {
+		return err
 	}
 	return nil
 }
@@ -305,4 +323,11 @@ func parseRange(s string) (start int64, end int64, err error) {
 	}
 
 	return
+}
+
+func max(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
 }
