@@ -1,6 +1,7 @@
 package gitdiff
 
 import (
+	"io"
 	"os"
 	"reflect"
 	"testing"
@@ -152,8 +153,8 @@ index deadbeef
 
 			f, err := p.ParseGitFileHeader()
 			if test.Err {
-				if err == nil {
-					t.Fatalf("expected error parsing git file header, got nil")
+				if err == nil || err == io.EOF {
+					t.Fatalf("expected error parsing git file header, got %v", err)
 				}
 				return
 			}
@@ -257,8 +258,8 @@ context line
 
 			f, err := p.ParseTraditionalFileHeader()
 			if test.Err {
-				if err == nil {
-					t.Fatalf("expected error parsing traditional file header, got nil")
+				if err == nil || err == io.EOF {
+					t.Fatalf("expected error parsing traditional file header, got %v", err)
 				}
 				return
 			}
@@ -357,8 +358,8 @@ func TestParseName(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			output, n, err := parseName(test.Input, test.Term, test.Drop)
 			if test.Err {
-				if err == nil {
-					t.Fatalf("expected error parsing name, but got nil")
+				if err == nil || err == io.EOF {
+					t.Fatalf("expected error parsing name, but got %v", err)
 				}
 				return
 			}
@@ -596,8 +597,8 @@ func TestParseGitHeaderData(t *testing.T) {
 
 			end, err := parseGitHeaderData(&f, test.Line, test.DefaultName)
 			if test.Err {
-				if err == nil {
-					t.Fatalf("expected error parsing header data, but got nil")
+				if err == nil || err == io.EOF {
+					t.Fatalf("expected error parsing header data, but got %v", err)
 				}
 				return
 			}
