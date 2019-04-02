@@ -34,22 +34,25 @@ In development, most functionality is currently missing, incomplete, or broken.
 
 [apply.c]: https://github.com/git/git/blob/master/apply.c
 
-## Known Issues and Differences From Git
+## Differences From Git
 
-1. Certain types of invalid input that I believe are accepted by `git apply`
-   generate errors. These include:
+1. Certain types of invalid input that are accepted by `git apply` generate
+   errors. These include:
 
    - Numbers immediately followed by non-numeric characters
    - Trailing characters on a line after valid or expected content
 
-2. The translation from C to Go may have introduced inconsistencies in the way
+2. Errors for invalid input are generally more verbose and specific than those
+   from `git apply`.
+
+3. The translation from C to Go may have introduced inconsistencies in the way
    Unicode file names are handled; these are bugs, so please report any issues
    of this type.
 
-3. When reading headers, there is no validation that OIDs present on an `index`
+4. When reading headers, there is no validation that OIDs present on an `index`
    line are shorter than or equal to the maximum hash length, as this requires
    knowing if the repository used SHA1 or SHA256 hashes.
 
-4. When reading "traditional" patches (those not produced by `git`), prefixes
-   are not stripped from file names (`git apply` attempts to remove prefixes
-   that match the current repository directory/prefix.)
+5. When reading "traditional" patches (those not produced by `git`), prefixes
+   are not stripped from file names; `git apply` attempts to remove prefixes
+   that match the current repository directory/prefix.

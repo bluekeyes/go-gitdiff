@@ -134,7 +134,7 @@ func (p *parser) ParseTextFragments(f *File) (n int, err error) {
 		}
 
 		if err := p.ParseTextChunk(frag); err != nil {
-			return n, nil
+			return n, err
 		}
 
 		f.Fragments = append(f.Fragments, frag)
@@ -277,6 +277,11 @@ func (p *parser) ParseTextChunk(frag *Fragment) error {
 				last.Line = strings.TrimSuffix(last.Line, "\n")
 				break
 			}
+			// TODO(bkeyes): if this is because we hit the next header, it
+			// would be helpful to return the miscounts line error. We could
+			// either test for the common headers ("@@ -", "diff --git") or
+			// assume any invalid op ends the fragment; git returns the same
+			// generic error in all cases so either is compatible
 			return p.Errorf(0, "invalid line operation: %q", op)
 		}
 

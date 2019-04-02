@@ -1,6 +1,7 @@
 package gitdiff
 
 import (
+	"io"
 	"reflect"
 	"testing"
 )
@@ -55,8 +56,8 @@ func TestParseTextFragmentHeader(t *testing.T) {
 
 			frag, err := p.ParseTextFragmentHeader()
 			if test.Err {
-				if err == nil {
-					t.Fatalf("expected error parsing header, but got nil")
+				if err == nil || err == io.EOF {
+					t.Fatalf("expected error parsing header, but got %v", err)
 				}
 				return
 			}
@@ -143,6 +144,33 @@ func TestParseTextChunk(t *testing.T) {
 				Lines: []FragmentLine{
 					{OpContext, "context line\n"},
 					{OpDelete, "old line 1\n"},
+					{OpAdd, "new line 1\n"},
+					{OpContext, "context line\n"},
+				},
+				LinesDeleted:    1,
+				LinesAdded:      1,
+				LeadingContext:  1,
+				TrailingContext: 1,
+			},
+		},
+		"middleContext": {
+			Input: ` context line
+-old line 1
+ context line
++new line 1
+ context line
+`,
+			Fragment: Fragment{
+				OldLines: 4,
+				NewLines: 4,
+			},
+			Output: &Fragment{
+				OldLines: 4,
+				NewLines: 4,
+				Lines: []FragmentLine{
+					{OpContext, "context line\n"},
+					{OpDelete, "old line 1\n"},
+					{OpContext, "context line\n"},
 					{OpAdd, "new line 1\n"},
 					{OpContext, "context line\n"},
 				},
@@ -298,8 +326,8 @@ func TestParseTextChunk(t *testing.T) {
 			frag := test.Fragment
 			err := p.ParseTextChunk(&frag)
 			if test.Err {
-				if err == nil {
-					t.Fatalf("expected error parsing text chunk, but got nil")
+				if err == nil || err == io.EOF {
+					t.Fatalf("expected error parsing text chunk, but got %v", err)
 				}
 				return
 			}
@@ -309,6 +337,133 @@ func TestParseTextChunk(t *testing.T) {
 
 			if !reflect.DeepEqual(test.Output, &frag) {
 				t.Errorf("incorrect fragment\nexpected: %+v\nactual: %+v", test.Output, &frag)
+			}
+		})
+	}
+}
+
+func TestParseTextFragments(t *testing.T) {
+	tests := map[string]struct {
+		Input string
+		File  File
+
+		Fragments []*Fragment
+		Err       bool
+	}{
+		"multipleChanges": {
+			Input: `@@ -1,3 +1,2 @@
+ context line
+-old line 1
+ context line
+@@ -8,3 +7,3 @@
+ context line
+-old line 2
++new line 1
+ context line
+@@ -15,3 +14,4 @@
+ context line
+-old line 3
++new line 2
++new line 3
+ context line
+`,
+			Fragments: []*Fragment{
+				{
+					OldPosition: 1,
+					OldLines:    3,
+					NewPosition: 1,
+					NewLines:    2,
+					Lines: []FragmentLine{
+						{OpContext, "context line\n"},
+						{OpDelete, "old line 1\n"},
+						{OpContext, "context line\n"},
+					},
+					LinesDeleted:    1,
+					LeadingContext:  1,
+					TrailingContext: 1,
+				},
+				{
+					OldPosition: 8,
+					OldLines:    3,
+					NewPosition: 7,
+					NewLines:    3,
+					Lines: []FragmentLine{
+						{OpContext, "context line\n"},
+						{OpDelete, "old line 2\n"},
+						{OpAdd, "new line 1\n"},
+						{OpContext, "context line\n"},
+					},
+					LinesDeleted:    1,
+					LinesAdded:      1,
+					LeadingContext:  1,
+					TrailingContext: 1,
+				},
+				{
+					OldPosition: 15,
+					OldLines:    3,
+					NewPosition: 14,
+					NewLines:    4,
+					Lines: []FragmentLine{
+						{OpContext, "context line\n"},
+						{OpDelete, "old line 3\n"},
+						{OpAdd, "new line 2\n"},
+						{OpAdd, "new line 3\n"},
+						{OpContext, "context line\n"},
+					},
+					LinesDeleted:    1,
+					LinesAdded:      2,
+					LeadingContext:  1,
+					TrailingContext: 1,
+				},
+			},
+		},
+		"badNewFile": {
+			Input: `@@ -1 +1,2 @@
+-old line 1
++new line 1
++new line 2
+`,
+			File: File{
+				IsNew: true,
+			},
+			Err: true,
+		},
+		"badDeletedFile": {
+			Input: `@@ -1,2 +1 @@
+-old line 1
+ context line
+`,
+			File: File{
+				IsDelete: true,
+			},
+			Err: true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			p := newTestParser(test.Input, true)
+
+			file := test.File
+			n, err := p.ParseTextFragments(&file)
+			if test.Err {
+				if err == nil || err == io.EOF {
+					t.Fatalf("expected error parsing text fragments, but got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("error parsing text fragments: %v", err)
+			}
+
+			if len(test.Fragments) != n {
+				t.Fatalf("incorrect number of added fragments: expected %d, actual %d", len(test.Fragments), n)
+			}
+
+			for i, frag := range test.Fragments {
+				if !reflect.DeepEqual(frag, file.Fragments[i]) {
+					t.Errorf("incorrect fragment at position %d\nexpected: %+v\nactual: %+v", i, frag, file.Fragments[i])
+				}
 			}
 		})
 	}
