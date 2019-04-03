@@ -3,6 +3,8 @@ package gitdiff
 import (
 	"bufio"
 	"io"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -131,6 +133,91 @@ context line
 
 			if test.EndLine != p.Line(0) {
 				t.Errorf("incorrect position after parsing\nexpected: %q\nactual: %q", test.EndLine, p.Line(0))
+			}
+		})
+	}
+}
+
+func TestParseNextFileHeader(t *testing.T) {
+	tests := map[string]struct {
+		Input  string
+		Output *File
+		Err    bool
+	}{
+		"gitHeader": {
+			Input: `commit 1acbae563cd6ef5750a82ee64e116c6eb065cb94
+Author:	Morton Haypenny <mhaypenny@example.com>
+Date:	Tue Apr 2 22:30:00 2019 -0700
+
+    This is a sample commit message.
+
+diff --git a/file.txt b/file.txt
+index cc34da1..1acbae5 100644
+--- a/file.txt
++++ b/file.txt
+@@ -1,3 +1,4 @@
+`,
+			Output: &File{
+				OldName:      "file.txt",
+				NewName:      "file.txt",
+				OldMode:      os.FileMode(0100644),
+				OldOIDPrefix: "cc34da1",
+				NewOIDPrefix: "1acbae5",
+			},
+		},
+		"traditionalHeader": {
+			Input: `
+--- file.txt	2019-04-01 22:58:14.833597918 -0700
++++ file.txt	2019-04-01 22:58:14.833597918 -0700
+@@ -1,3 +1,4 @@
+`,
+			Output: &File{
+				OldName: "file.txt",
+				NewName: "file.txt",
+			},
+		},
+		"noHeaders": {
+			Input: `
+this is a line
+this is another line
+--- could this be a header?
+nope, it's just some dashes
+`,
+			Output: nil,
+		},
+		"detatchedFragmentLike": {
+			Input: `
+a wild fragment appears?
+@@ -1,3 +1,4 ~1,5 @@
+`,
+			Output: nil,
+		},
+		"detatchedFragment": {
+			Input: `
+a wild fragment appears?
+@@ -1,3 +1,4 @@
+`,
+			Err: true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			p := newTestParser(test.Input, true)
+
+			f, err := p.ParseNextFileHeader()
+			if test.Err {
+				if err == nil || err == io.EOF {
+					t.Fatalf("expected error parsing next file header, but got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error parsing next file header: %v", err)
+			}
+
+			if !reflect.DeepEqual(test.Output, f) {
+				t.Errorf("incorrect file\nexpected: %+v\nactual: %+v", test.Output, f)
 			}
 		})
 	}
