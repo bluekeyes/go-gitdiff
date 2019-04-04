@@ -2,6 +2,7 @@ package gitdiff
 
 import (
 	"bufio"
+	"encoding/json"
 	"io"
 	"os"
 	"reflect"
@@ -218,6 +219,98 @@ a wild fragment appears?
 
 			if !reflect.DeepEqual(test.Output, f) {
 				t.Errorf("incorrect file\nexpected: %+v\nactual: %+v", test.Output, f)
+			}
+		})
+	}
+}
+
+func TestParse(t *testing.T) {
+	tests := map[string]struct {
+		InputFile string
+		Output    []*File
+		Err       bool
+	}{
+		"singleFile": {
+			InputFile: "testdata/single_file.patch",
+			Output: []*File{
+				{
+					OldName:      "dir/file.txt",
+					NewName:      "dir/file.txt",
+					OldMode:      os.FileMode(0100644),
+					OldOIDPrefix: "ebe9fa54",
+					NewOIDPrefix: "fe103e1d",
+					Fragments: []*Fragment{
+						{
+							OldPosition: 3,
+							OldLines:    6,
+							NewPosition: 3,
+							NewLines:    8,
+							Comment:     "fragment 1",
+							Lines: []FragmentLine{
+								{OpContext, "context line\n"},
+								{OpDelete, "old line 1\n"},
+								{OpDelete, "old line 2\n"},
+								{OpContext, "context line\n"},
+								{OpAdd, "new line 1\n"},
+								{OpAdd, "new line 2\n"},
+								{OpAdd, "new line 3\n"},
+								{OpContext, "context line\n"},
+								{OpDelete, "old line 3\n"},
+								{OpAdd, "new line 4\n"},
+								{OpAdd, "new line 5\n"},
+							},
+							LinesAdded:     5,
+							LinesDeleted:   3,
+							LeadingContext: 1,
+						},
+						{
+							OldPosition: 31,
+							OldLines:    2,
+							NewPosition: 33,
+							NewLines:    2,
+							Comment:     "fragment 2",
+							Lines: []FragmentLine{
+								{OpContext, "context line\n"},
+								{OpDelete, "old line 4\n"},
+								{OpAdd, "new line 6\n"},
+							},
+							LinesAdded:     1,
+							LinesDeleted:   1,
+							LeadingContext: 1,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			f, err := os.Open(test.InputFile)
+			if err != nil {
+				t.Fatalf("unexpected error opening input file: %v", err)
+			}
+
+			files, err := Parse(f)
+			if test.Err {
+				if err == nil || err == io.EOF {
+					t.Fatalf("expected error parsing patch, but got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error parsing patch: %v", err)
+			}
+
+			if len(test.Output) != len(files) {
+				t.Fatalf("incorrect number of parsed files: expected %d, actual %d", len(test.Output), len(files))
+			}
+			for i := range test.Output {
+				if !reflect.DeepEqual(test.Output[i], files[i]) {
+					exp, _ := json.MarshalIndent(test.Output[i], "", "  ")
+					act, _ := json.MarshalIndent(files[i], "", "  ")
+					t.Errorf("incorrect file at position %d\nexpected: %s\nactual: %s", i, exp, act)
+				}
 			}
 		})
 	}
