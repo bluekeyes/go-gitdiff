@@ -20,6 +20,8 @@ func Parse(r io.Reader) ([]*File, error) {
 		return nil, err
 	}
 
+	// TODO(bkeyes): capture non-file lines in between files
+
 	var files []*File
 	for {
 		file, err := p.ParseNextFileHeader()

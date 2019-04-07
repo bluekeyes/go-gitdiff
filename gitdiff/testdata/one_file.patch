@@ -6,10 +6,10 @@ Date:   Tue Apr 2 22:55:40 2019 -0700
 
     The content is arbitrary.
 
-diff --git a/dir/file.txt b/dir/file.txt
+diff --git a/dir/file1.txt b/dir/file1.txt
 index ebe9fa54..fe103e1d 100644
---- a/dir/file.txt
-+++ b/dir/file.txt
+--- a/dir/file1.txt
++++ b/dir/file1.txt
 @@ -3,6 +3,8 @@ fragment 1
  context line
 -old line 1

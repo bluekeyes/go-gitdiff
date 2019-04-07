@@ -225,60 +225,83 @@ a wild fragment appears?
 }
 
 func TestParse(t *testing.T) {
+	expectedFragments := []*Fragment{
+		{
+			OldPosition: 3,
+			OldLines:    6,
+			NewPosition: 3,
+			NewLines:    8,
+			Comment:     "fragment 1",
+			Lines: []FragmentLine{
+				{OpContext, "context line\n"},
+				{OpDelete, "old line 1\n"},
+				{OpDelete, "old line 2\n"},
+				{OpContext, "context line\n"},
+				{OpAdd, "new line 1\n"},
+				{OpAdd, "new line 2\n"},
+				{OpAdd, "new line 3\n"},
+				{OpContext, "context line\n"},
+				{OpDelete, "old line 3\n"},
+				{OpAdd, "new line 4\n"},
+				{OpAdd, "new line 5\n"},
+			},
+			LinesAdded:     5,
+			LinesDeleted:   3,
+			LeadingContext: 1,
+		},
+		{
+			OldPosition: 31,
+			OldLines:    2,
+			NewPosition: 33,
+			NewLines:    2,
+			Comment:     "fragment 2",
+			Lines: []FragmentLine{
+				{OpContext, "context line\n"},
+				{OpDelete, "old line 4\n"},
+				{OpAdd, "new line 6\n"},
+			},
+			LinesAdded:     1,
+			LinesDeleted:   1,
+			LeadingContext: 1,
+		},
+	}
+
 	tests := map[string]struct {
 		InputFile string
 		Output    []*File
 		Err       bool
 	}{
-		"singleFile": {
-			InputFile: "testdata/single_file.patch",
+		"oneFile": {
+			InputFile: "testdata/one_file.patch",
 			Output: []*File{
 				{
-					OldName:      "dir/file.txt",
-					NewName:      "dir/file.txt",
+					OldName:      "dir/file1.txt",
+					NewName:      "dir/file1.txt",
 					OldMode:      os.FileMode(0100644),
 					OldOIDPrefix: "ebe9fa54",
 					NewOIDPrefix: "fe103e1d",
-					Fragments: []*Fragment{
-						{
-							OldPosition: 3,
-							OldLines:    6,
-							NewPosition: 3,
-							NewLines:    8,
-							Comment:     "fragment 1",
-							Lines: []FragmentLine{
-								{OpContext, "context line\n"},
-								{OpDelete, "old line 1\n"},
-								{OpDelete, "old line 2\n"},
-								{OpContext, "context line\n"},
-								{OpAdd, "new line 1\n"},
-								{OpAdd, "new line 2\n"},
-								{OpAdd, "new line 3\n"},
-								{OpContext, "context line\n"},
-								{OpDelete, "old line 3\n"},
-								{OpAdd, "new line 4\n"},
-								{OpAdd, "new line 5\n"},
-							},
-							LinesAdded:     5,
-							LinesDeleted:   3,
-							LeadingContext: 1,
-						},
-						{
-							OldPosition: 31,
-							OldLines:    2,
-							NewPosition: 33,
-							NewLines:    2,
-							Comment:     "fragment 2",
-							Lines: []FragmentLine{
-								{OpContext, "context line\n"},
-								{OpDelete, "old line 4\n"},
-								{OpAdd, "new line 6\n"},
-							},
-							LinesAdded:     1,
-							LinesDeleted:   1,
-							LeadingContext: 1,
-						},
-					},
+					Fragments:    expectedFragments,
+				},
+			},
+		},
+		"twoFiles": {
+			InputFile: "testdata/two_files.patch",
+			Output: []*File{
+				{
+					OldName:      "dir/file1.txt",
+					NewName:      "dir/file1.txt",
+					OldMode:      os.FileMode(0100644),
+					OldOIDPrefix: "ebe9fa54",
+					NewOIDPrefix: "fe103e1d",
+					Fragments:    expectedFragments,
+				},
+				{
+					OldName:      "dir/file2.txt",
+					NewName:      "dir/file2.txt",
+					OldMode:      os.FileMode(0100644),
+					OldOIDPrefix: "417ebc70",
+					NewOIDPrefix: "67514b7f",
+					Fragments:    expectedFragments,
 				},
 			},
 		},
