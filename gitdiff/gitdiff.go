@@ -26,6 +26,15 @@ type File struct {
 	// TextFragments contains the fragments describing changes to a text file. It
 	// may be empty if the file is empty or if only the mode changes.
 	TextFragments []*TextFragment
+
+	// IsBinary is true if the file is a binary file. If the patch includes
+	// binary data, BinaryFragment will be non-nil and describe the changes to
+	// the data. If the patch is reversible, ReverseBinaryFragment will also be
+	// non-nil and describe the changes needed to restore the original file
+	// after applying the changes in BinaryFragment.
+	IsBinary              bool
+	BinaryFragment        *BinaryFragment
+	ReverseBinaryFragment *BinaryFragment
 }
 
 // TextFragment describes changed lines starting at a specific line in a text file.
@@ -86,3 +95,18 @@ func (op LineOp) String() string {
 	return "?"
 }
 
+// BinaryFragment describes changes to a binary file.
+type BinaryFragment struct {
+	Method BinaryPatchMethod
+	Data   []byte
+}
+
+// BinaryPatchMethod is the method used to create and apply the binary patch.
+type BinaryPatchMethod int
+
+const (
+	// BinaryPatchDelta indicates the data uses Git's packfile encoding
+	BinaryPatchDelta BinaryPatchMethod = iota
+	// BinaryPatchLiteral indicates the data is the exact file content
+	BinaryPatchLiteral
+)

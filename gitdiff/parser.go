@@ -33,7 +33,7 @@ func Parse(r io.Reader) ([]*File, string, error) {
 
 		for _, fn := range []func(*File) (int, error){
 			p.ParseTextFragments,
-			p.ParseBinaryFragment,
+			p.ParseBinaryFragments,
 		} {
 			n, err := fn(file)
 			if err != nil {
@@ -316,8 +316,34 @@ func (p *parser) ParseTextChunk(frag *TextFragment) error {
 	return nil
 }
 
-func (p *parser) ParseBinaryFragment(f *File) (n int, err error) {
-	panic("TODO(bkeyes): unimplemented")
+func (p *parser) ParseBinaryFragments(f *File) (n int, err error) {
+	isBinary, hasData, err := p.ParseBinaryMarker()
+	if err != nil || !isBinary {
+		return 0, err
+	}
+
+	f.IsBinary = true
+	if hasData {
+		panic("TODO(bkeyes): unimplemented")
+	}
+
+	return 0, nil
+}
+
+func (p *parser) ParseBinaryMarker() (isBinary bool, hasData bool, err error) {
+	switch p.Line(0) {
+	case "GIT binary patch\n":
+		hasData = true
+	case "Binary files differ\n":
+	case "Files differ\n":
+	default:
+		return false, false, nil
+	}
+
+	if err = p.Next(); err != nil && err != io.EOF {
+		return true, hasData, err
+	}
+	return true, hasData, nil
 }
 
 func parseRange(s string) (start int64, end int64, err error) {
