@@ -8,25 +8,24 @@ import (
 	"strings"
 )
 
-// Parse parses a patch with changes for one or more files. Any content
-// preceding the first file header is ignored. If an error occurs while
-// parsing, files will contain all files parsed before the error.
-func Parse(r io.Reader) ([]*File, error) {
+// Parse parses a patch with changes to one or more files. Any content before
+// the first file is returned as the second value. If an error occurs while
+// parsing, it returns all files parsed before the error.
+func Parse(r io.Reader) ([]*File, string, error) {
 	p := &parser{r: bufio.NewReader(r)}
 	if err := p.Next(); err != nil {
 		if err == io.EOF {
-			return nil, nil
+			return nil, "", nil
 		}
-		return nil, err
+		return nil, "", err
 	}
 
-	// TODO(bkeyes): capture non-file lines in between files
-
+	var preamble string
 	var files []*File
 	for {
-		file, err := p.ParseNextFileHeader()
+		file, pre, err := p.ParseNextFileHeader()
 		if err != nil {
-			return files, err
+			return files, preamble, err
 		}
 		if file == nil {
 			break
@@ -38,17 +37,20 @@ func Parse(r io.Reader) ([]*File, error) {
 		} {
 			n, err := fn(file)
 			if err != nil {
-				return files, err
+				return files, preamble, err
 			}
 			if n > 0 {
 				break
 			}
 		}
-		// file has fragment(s) from above or the patch is empty or invalid
+
+		if len(files) == 0 {
+			preamble = pre
+		}
 		files = append(files, file)
 	}
 
-	return files, nil
+	return files, preamble, nil
 }
 
 // TODO(bkeyes): consider exporting the parser type with configuration
@@ -71,9 +73,11 @@ type parser struct {
 	lines  [3]string
 }
 
-// ParseNextFileHeader finds and parses the next file header in the stream. It
-// returns nil if no headers are found before the end of the stream.
-func (p *parser) ParseNextFileHeader() (*File, error) {
+// ParseNextFileHeader finds and parses the next file header in the stream. If
+// a header is found, it returns a file and all input before the header. It
+// returns nil if no headers are found before the end of the input.
+func (p *parser) ParseNextFileHeader() (*File, string, error) {
+	var preamble strings.Builder
 	var file *File
 	for {
 		// check for disconnected fragment headers (corrupt patch)
@@ -83,36 +87,37 @@ func (p *parser) ParseNextFileHeader() (*File, error) {
 			goto NextLine
 		}
 		if frag != nil {
-			return nil, p.Errorf(-1, "patch fragment without file header: %s", frag.Header())
+			return nil, "", p.Errorf(-1, "patch fragment without file header: %s", frag.Header())
 		}
 
 		// check for a git-generated patch
 		file, err = p.ParseGitFileHeader()
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		if file != nil {
-			return file, nil
+			return file, preamble.String(), nil
 		}
 
 		// check for a "traditional" patch
 		file, err = p.ParseTraditionalFileHeader()
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		if file != nil {
-			return file, nil
+			return file, preamble.String(), nil
 		}
 
 	NextLine:
+		preamble.WriteString(p.Line(0))
 		if err := p.Next(); err != nil {
 			if err == io.EOF {
 				break
 			}
-			return nil, err
+			return nil, "", err
 		}
 	}
-	return nil, nil
+	return nil, "", nil
 }
 
 // ParseTextFragments parses text fragments until the next file header or the

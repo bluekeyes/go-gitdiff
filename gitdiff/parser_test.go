@@ -133,7 +133,7 @@ context line
 			}
 
 			if test.EndLine != p.Line(0) {
-				t.Errorf("incorrect position after parsing\nexpected: %q\nactual: %q", test.EndLine, p.Line(0))
+				t.Errorf("incorrect position after parsing\nexpected: %q\n  actual: %q", test.EndLine, p.Line(0))
 			}
 		})
 	}
@@ -141,9 +141,10 @@ context line
 
 func TestParseNextFileHeader(t *testing.T) {
 	tests := map[string]struct {
-		Input  string
-		Output *File
-		Err    bool
+		Input    string
+		Output   *File
+		Preamble string
+		Err      bool
 	}{
 		"gitHeader": {
 			Input: `commit 1acbae563cd6ef5750a82ee64e116c6eb065cb94
@@ -165,6 +166,13 @@ index cc34da1..1acbae5 100644
 				OldOIDPrefix: "cc34da1",
 				NewOIDPrefix: "1acbae5",
 			},
+			Preamble: `commit 1acbae563cd6ef5750a82ee64e116c6eb065cb94
+Author:	Morton Haypenny <mhaypenny@example.com>
+Date:	Tue Apr 2 22:30:00 2019 -0700
+
+    This is a sample commit message.
+
+`,
 		},
 		"traditionalHeader": {
 			Input: `
@@ -176,6 +184,7 @@ index cc34da1..1acbae5 100644
 				OldName: "file.txt",
 				NewName: "file.txt",
 			},
+			Preamble: "\n",
 		},
 		"noHeaders": {
 			Input: `
@@ -184,7 +193,8 @@ this is another line
 --- could this be a header?
 nope, it's just some dashes
 `,
-			Output: nil,
+			Output:   nil,
+			Preamble: "",
 		},
 		"detatchedFragmentLike": {
 			Input: `
@@ -206,7 +216,7 @@ a wild fragment appears?
 		t.Run(name, func(t *testing.T) {
 			p := newTestParser(test.Input, true)
 
-			f, err := p.ParseNextFileHeader()
+			f, pre, err := p.ParseNextFileHeader()
 			if test.Err {
 				if err == nil || err == io.EOF {
 					t.Fatalf("expected error parsing next file header, but got %v", err)
@@ -217,8 +227,11 @@ a wild fragment appears?
 				t.Fatalf("unexpected error parsing next file header: %v", err)
 			}
 
+			if test.Preamble != pre {
+				t.Errorf("incorrect preamble\nexpected: %q\n  actual: %q", test.Preamble, pre)
+			}
 			if !reflect.DeepEqual(test.Output, f) {
-				t.Errorf("incorrect file\nexpected: %+v\nactual: %+v", test.Output, f)
+				t.Errorf("incorrect file\nexpected: %+v\n  actual: %+v", test.Output, f)
 			}
 		})
 	}
@@ -266,9 +279,20 @@ func TestParse(t *testing.T) {
 		},
 	}
 
+	expectedPreamble := `commit 5d9790fec7d95aa223f3d20936340bf55ff3dcbe
+Author: Morton Haypenny <mhaypenny@example.com>
+Date:   Tue Apr 2 22:55:40 2019 -0700
+
+    A file with multiple fragments.
+
+    The content is arbitrary.
+
+`
+
 	tests := map[string]struct {
 		InputFile string
 		Output    []*File
+		Preamble  string
 		Err       bool
 	}{
 		"oneFile": {
@@ -283,6 +307,7 @@ func TestParse(t *testing.T) {
 					Fragments:    expectedFragments,
 				},
 			},
+			Preamble: expectedPreamble,
 		},
 		"twoFiles": {
 			InputFile: "testdata/two_files.patch",
@@ -304,6 +329,7 @@ func TestParse(t *testing.T) {
 					Fragments:    expectedFragments,
 				},
 			},
+			Preamble: expectedPreamble,
 		},
 	}
 
@@ -314,7 +340,7 @@ func TestParse(t *testing.T) {
 				t.Fatalf("unexpected error opening input file: %v", err)
 			}
 
-			files, err := Parse(f)
+			files, pre, err := Parse(f)
 			if test.Err {
 				if err == nil || err == io.EOF {
 					t.Fatalf("expected error parsing patch, but got %v", err)
@@ -328,11 +354,14 @@ func TestParse(t *testing.T) {
 			if len(test.Output) != len(files) {
 				t.Fatalf("incorrect number of parsed files: expected %d, actual %d", len(test.Output), len(files))
 			}
+			if test.Preamble != pre {
+				t.Errorf("incorrect preamble\nexpected: %q\n  actual: %q", test.Preamble, pre)
+			}
 			for i := range test.Output {
 				if !reflect.DeepEqual(test.Output[i], files[i]) {
 					exp, _ := json.MarshalIndent(test.Output[i], "", "  ")
 					act, _ := json.MarshalIndent(files[i], "", "  ")
-					t.Errorf("incorrect file at position %d\nexpected: %s\nactual: %s", i, exp, act)
+					t.Errorf("incorrect file at position %d\nexpected: %s\n  actual: %s", i, exp, act)
 				}
 			}
 		})
