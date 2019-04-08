@@ -26,15 +26,6 @@ index ebe9fa54..fe103e1d 100644
  context line
 -old line 4
 +new line 6
-
-commit a84b8652757d3114875388ad6d6de782f179d82a
-Author: Morton Haypenny <mhaypenny@example.com>
-Date:   Wed Apr 3 20:45:10 2019 -0700
-
-    Another file with multiple fragments.
-
-    The content is arbitrary.
-
 diff --git a/dir/file2.txt b/dir/file2.txt
 index 417ebc70..67514b7f 100644
 --- a/dir/file2.txt
