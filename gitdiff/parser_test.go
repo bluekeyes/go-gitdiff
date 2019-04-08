@@ -80,7 +80,7 @@ func TestLineOperations(t *testing.T) {
 	})
 }
 
-func TestParserAdvancment(t *testing.T) {
+func TestParserInvariant_Advancement(t *testing.T) {
 	tests := map[string]struct {
 		Input   string
 		Parse   func(p *parser) error
@@ -121,6 +121,48 @@ context line
 				return err
 			},
 			EndLine: "context line\n",
+		},
+		"ParseTextChunk": {
+			Input: ` context line
+-old line
++new line
+ context line
+@@ -1 +1 @@
+`,
+			Parse: func(p *parser) error {
+				return p.ParseTextChunk(&Fragment{OldLines: 3, NewLines: 3})
+			},
+			EndLine: "@@ -1 +1 @@\n",
+		},
+		"ParseTextFragments": {
+			Input: `@@ -1,2 +1,2 @@
+ context line
+-old line
++new line
+@@ -1,2 +1,2 @@
+-old line
++new line
+ context line
+diff --git a/file.txt b/file.txt
+`,
+			Parse: func(p *parser) error {
+				_, err := p.ParseTextFragments(&File{})
+				return err
+			},
+			EndLine: "diff --git a/file.txt b/file.txt\n",
+		},
+		"ParseNextFileHeader": {
+			Input: `not a header
+diff --git a/file.txt b/file.txt
+--- a/file.txt
++++ b/file.txt
+@@ -1,2 +1,2 @@
+`,
+			Parse: func(p *parser) error {
+				_, _, err := p.ParseNextFileHeader()
+				return err
+			},
+			EndLine: "@@ -1,2 +1,2 @@\n",
 		},
 	}
 
