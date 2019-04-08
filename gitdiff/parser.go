@@ -144,7 +144,7 @@ func (p *parser) ParseTextFragments(f *File) (n int, err error) {
 			return n, err
 		}
 
-		f.Fragments = append(f.Fragments, frag)
+		f.TextFragments = append(f.TextFragments, frag)
 		n++
 	}
 }
@@ -200,7 +200,7 @@ func (p *parser) Errorf(delta int64, msg string, args ...interface{}) error {
 	return fmt.Errorf("gitdiff: line %d: %s", p.lineno+delta, fmt.Sprintf(msg, args...))
 }
 
-func (p *parser) ParseTextFragmentHeader() (*Fragment, error) {
+func (p *parser) ParseTextFragmentHeader() (*TextFragment, error) {
 	const (
 		startMark = "@@ -"
 		endMark   = " @@"
@@ -215,7 +215,7 @@ func (p *parser) ParseTextFragmentHeader() (*Fragment, error) {
 		return nil, p.Errorf(0, "invalid fragment header")
 	}
 
-	f := &Fragment{}
+	f := &TextFragment{}
 	f.Comment = strings.TrimSpace(parts[1])
 
 	header := parts[0][len(startMark) : len(parts[0])-len(endMark)]
@@ -238,7 +238,7 @@ func (p *parser) ParseTextFragmentHeader() (*Fragment, error) {
 	return f, nil
 }
 
-func (p *parser) ParseTextChunk(frag *Fragment) error {
+func (p *parser) ParseTextChunk(frag *TextFragment) error {
 	if p.Line(0) == "" {
 		return p.Errorf(0, "no content following fragment header")
 	}
@@ -266,17 +266,17 @@ func (p *parser) ParseTextChunk(frag *Fragment) error {
 			} else {
 				frag.TrailingContext++
 			}
-			frag.Lines = append(frag.Lines, FragmentLine{OpContext, data})
+			frag.Lines = append(frag.Lines, Line{OpContext, data})
 		case '-':
 			oldLines--
 			frag.LinesDeleted++
 			frag.TrailingContext = 0
-			frag.Lines = append(frag.Lines, FragmentLine{OpDelete, data})
+			frag.Lines = append(frag.Lines, Line{OpDelete, data})
 		case '+':
 			newLines--
 			frag.LinesAdded++
 			frag.TrailingContext = 0
-			frag.Lines = append(frag.Lines, FragmentLine{OpAdd, data})
+			frag.Lines = append(frag.Lines, Line{OpAdd, data})
 		default:
 			// this may appear in middle of fragment if it's for a deleted line
 			if isNoNewlineLine(line) {

@@ -130,7 +130,7 @@ context line
 @@ -1 +1 @@
 `,
 			Parse: func(p *parser) error {
-				return p.ParseTextChunk(&Fragment{OldLines: 3, NewLines: 3})
+				return p.ParseTextChunk(&TextFragment{OldLines: 3, NewLines: 3})
 			},
 			EndLine: "@@ -1 +1 @@\n",
 		},
@@ -280,14 +280,14 @@ a wild fragment appears?
 }
 
 func TestParse(t *testing.T) {
-	expectedFragments := []*Fragment{
+	expectedFragments := []*TextFragment{
 		{
 			OldPosition: 3,
 			OldLines:    6,
 			NewPosition: 3,
 			NewLines:    8,
 			Comment:     "fragment 1",
-			Lines: []FragmentLine{
+			Lines: []Line{
 				{OpContext, "context line\n"},
 				{OpDelete, "old line 1\n"},
 				{OpDelete, "old line 2\n"},
@@ -310,7 +310,7 @@ func TestParse(t *testing.T) {
 			NewPosition: 33,
 			NewLines:    2,
 			Comment:     "fragment 2",
-			Lines: []FragmentLine{
+			Lines: []Line{
 				{OpContext, "context line\n"},
 				{OpDelete, "old line 4\n"},
 				{OpAdd, "new line 6\n"},
@@ -341,12 +341,12 @@ Date:   Tue Apr 2 22:55:40 2019 -0700
 			InputFile: "testdata/one_file.patch",
 			Output: []*File{
 				{
-					OldName:      "dir/file1.txt",
-					NewName:      "dir/file1.txt",
-					OldMode:      os.FileMode(0100644),
-					OldOIDPrefix: "ebe9fa54",
-					NewOIDPrefix: "fe103e1d",
-					Fragments:    expectedFragments,
+					OldName:       "dir/file1.txt",
+					NewName:       "dir/file1.txt",
+					OldMode:       os.FileMode(0100644),
+					OldOIDPrefix:  "ebe9fa54",
+					NewOIDPrefix:  "fe103e1d",
+					TextFragments: expectedFragments,
 				},
 			},
 			Preamble: expectedPreamble,
@@ -355,20 +355,20 @@ Date:   Tue Apr 2 22:55:40 2019 -0700
 			InputFile: "testdata/two_files.patch",
 			Output: []*File{
 				{
-					OldName:      "dir/file1.txt",
-					NewName:      "dir/file1.txt",
-					OldMode:      os.FileMode(0100644),
-					OldOIDPrefix: "ebe9fa54",
-					NewOIDPrefix: "fe103e1d",
-					Fragments:    expectedFragments,
+					OldName:       "dir/file1.txt",
+					NewName:       "dir/file1.txt",
+					OldMode:       os.FileMode(0100644),
+					OldOIDPrefix:  "ebe9fa54",
+					NewOIDPrefix:  "fe103e1d",
+					TextFragments: expectedFragments,
 				},
 				{
-					OldName:      "dir/file2.txt",
-					NewName:      "dir/file2.txt",
-					OldMode:      os.FileMode(0100644),
-					OldOIDPrefix: "417ebc70",
-					NewOIDPrefix: "67514b7f",
-					Fragments:    expectedFragments,
+					OldName:       "dir/file2.txt",
+					NewName:       "dir/file2.txt",
+					OldMode:       os.FileMode(0100644),
+					OldOIDPrefix:  "417ebc70",
+					NewOIDPrefix:  "67514b7f",
+					TextFragments: expectedFragments,
 				},
 			},
 			Preamble: expectedPreamble,

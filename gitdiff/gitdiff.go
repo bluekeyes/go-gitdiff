@@ -23,11 +23,13 @@ type File struct {
 	NewOIDPrefix string
 	Score        int
 
-	Fragments []*Fragment
+	// TextFragments contains the fragments describing changes to a text file. It
+	// may be empty if the file is empty or if only the mode changes.
+	TextFragments []*TextFragment
 }
 
-// Fragment describes changed lines starting at a specific line in a text file.
-type Fragment struct {
+// TextFragment describes changed lines starting at a specific line in a text file.
+type TextFragment struct {
 	Comment string
 
 	OldPosition int64
@@ -42,20 +44,25 @@ type Fragment struct {
 	LeadingContext  int64
 	TrailingContext int64
 
-	Lines []FragmentLine
+	Lines []Line
 }
 
-// FragmentLine is a line in a fragment.
-type FragmentLine struct {
+// Header returns the cannonical header of this fragment.
+func (f *TextFragment) Header() string {
+	return fmt.Sprintf("@@ -%d,%d +%d,%d @@ %s", f.OldPosition, f.OldLines, f.NewPosition, f.NewLines, f.Comment)
+}
+
+// Line is a line in a text fragment.
+type Line struct {
 	Op   LineOp
 	Line string
 }
 
-func (fl FragmentLine) String() string {
+func (fl Line) String() string {
 	return fl.Op.String() + fl.Line
 }
 
-// LineOp describes the type of a fragment line: context, added, or removed.
+// LineOp describes the type of a text fragment line: context, added, or removed.
 type LineOp int
 
 const (
@@ -79,7 +86,3 @@ func (op LineOp) String() string {
 	return "?"
 }
 
-// Header returns the cannonical header of this fragment.
-func (f *Fragment) Header() string {
-	return fmt.Sprintf("@@ -%d,%d +%d,%d @@ %s", f.OldPosition, f.OldLines, f.NewPosition, f.NewLines, f.Comment)
-}

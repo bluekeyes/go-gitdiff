@@ -9,12 +9,12 @@ import (
 func TestParseTextFragmentHeader(t *testing.T) {
 	tests := map[string]struct {
 		Input  string
-		Output *Fragment
+		Output *TextFragment
 		Err    bool
 	}{
 		"shortest": {
 			Input: "@@ -1 +1 @@\n",
-			Output: &Fragment{
+			Output: &TextFragment{
 				OldPosition: 1,
 				OldLines:    1,
 				NewPosition: 1,
@@ -23,7 +23,7 @@ func TestParseTextFragmentHeader(t *testing.T) {
 		},
 		"standard": {
 			Input: "@@ -21,5 +28,9 @@\n",
-			Output: &Fragment{
+			Output: &TextFragment{
 				OldPosition: 21,
 				OldLines:    5,
 				NewPosition: 28,
@@ -32,7 +32,7 @@ func TestParseTextFragmentHeader(t *testing.T) {
 		},
 		"trailingComment": {
 			Input: "@@ -21,5 +28,9 @@ func test(n int) {\n",
-			Output: &Fragment{
+			Output: &TextFragment{
 				Comment:     "func test(n int) {",
 				OldPosition: 21,
 				OldLines:    5,
@@ -75,9 +75,9 @@ func TestParseTextFragmentHeader(t *testing.T) {
 func TestParseTextChunk(t *testing.T) {
 	tests := map[string]struct {
 		Input    string
-		Fragment Fragment
+		Fragment TextFragment
 
-		Output *Fragment
+		Output *TextFragment
 		Err    bool
 	}{
 		"addWithContext": {
@@ -86,14 +86,14 @@ func TestParseTextChunk(t *testing.T) {
 +new line 2
  context line
 `,
-			Fragment: Fragment{
+			Fragment: TextFragment{
 				OldLines: 2,
 				NewLines: 4,
 			},
-			Output: &Fragment{
+			Output: &TextFragment{
 				OldLines: 2,
 				NewLines: 4,
-				Lines: []FragmentLine{
+				Lines: []Line{
 					{OpContext, "context line\n"},
 					{OpAdd, "new line 1\n"},
 					{OpAdd, "new line 2\n"},
@@ -110,14 +110,14 @@ func TestParseTextChunk(t *testing.T) {
 -old line 2
  context line
 `,
-			Fragment: Fragment{
+			Fragment: TextFragment{
 				OldLines: 4,
 				NewLines: 2,
 			},
-			Output: &Fragment{
+			Output: &TextFragment{
 				OldLines: 4,
 				NewLines: 2,
-				Lines: []FragmentLine{
+				Lines: []Line{
 					{OpContext, "context line\n"},
 					{OpDelete, "old line 1\n"},
 					{OpDelete, "old line 2\n"},
@@ -134,14 +134,14 @@ func TestParseTextChunk(t *testing.T) {
 +new line 1
  context line
 `,
-			Fragment: Fragment{
+			Fragment: TextFragment{
 				OldLines: 3,
 				NewLines: 3,
 			},
-			Output: &Fragment{
+			Output: &TextFragment{
 				OldLines: 3,
 				NewLines: 3,
-				Lines: []FragmentLine{
+				Lines: []Line{
 					{OpContext, "context line\n"},
 					{OpDelete, "old line 1\n"},
 					{OpAdd, "new line 1\n"},
@@ -160,14 +160,14 @@ func TestParseTextChunk(t *testing.T) {
 +new line 1
  context line
 `,
-			Fragment: Fragment{
+			Fragment: TextFragment{
 				OldLines: 4,
 				NewLines: 4,
 			},
-			Output: &Fragment{
+			Output: &TextFragment{
 				OldLines: 4,
 				NewLines: 4,
-				Lines: []FragmentLine{
+				Lines: []Line{
 					{OpContext, "context line\n"},
 					{OpDelete, "old line 1\n"},
 					{OpContext, "context line\n"},
@@ -186,14 +186,14 @@ func TestParseTextChunk(t *testing.T) {
 +new line 1
 \ No newline at end of file
 `,
-			Fragment: Fragment{
+			Fragment: TextFragment{
 				OldLines: 2,
 				NewLines: 2,
 			},
-			Output: &Fragment{
+			Output: &TextFragment{
 				OldLines: 2,
 				NewLines: 2,
-				Lines: []FragmentLine{
+				Lines: []Line{
 					{OpContext, "context line\n"},
 					{OpDelete, "old line 1\n"},
 					{OpAdd, "new line 1"},
@@ -209,14 +209,14 @@ func TestParseTextChunk(t *testing.T) {
 \ No newline at end of file
 +new line 1
 `,
-			Fragment: Fragment{
+			Fragment: TextFragment{
 				OldLines: 2,
 				NewLines: 2,
 			},
-			Output: &Fragment{
+			Output: &TextFragment{
 				OldLines: 2,
 				NewLines: 2,
-				Lines: []FragmentLine{
+				Lines: []Line{
 					{OpContext, "context line\n"},
 					{OpDelete, "old line 1"},
 					{OpAdd, "new line 1\n"},
@@ -231,14 +231,14 @@ func TestParseTextChunk(t *testing.T) {
 +new line 2
 +new line 3
 `,
-			Fragment: Fragment{
+			Fragment: TextFragment{
 				OldLines: 0,
 				NewLines: 3,
 			},
-			Output: &Fragment{
+			Output: &TextFragment{
 				OldLines: 0,
 				NewLines: 3,
-				Lines: []FragmentLine{
+				Lines: []Line{
 					{OpAdd, "new line 1\n"},
 					{OpAdd, "new line 2\n"},
 					{OpAdd, "new line 3\n"},
@@ -251,14 +251,14 @@ func TestParseTextChunk(t *testing.T) {
 -old line 2
 -old line 3
 `,
-			Fragment: Fragment{
+			Fragment: TextFragment{
 				OldLines: 3,
 				NewLines: 0,
 			},
-			Output: &Fragment{
+			Output: &TextFragment{
 				OldLines: 3,
 				NewLines: 0,
-				Lines: []FragmentLine{
+				Lines: []Line{
 					{OpDelete, "old line 1\n"},
 					{OpDelete, "old line 2\n"},
 					{OpDelete, "old line 3\n"},
@@ -272,14 +272,14 @@ func TestParseTextChunk(t *testing.T) {
 +new line
  context line
 `,
-			Fragment: Fragment{
+			Fragment: TextFragment{
 				OldLines: 3,
 				NewLines: 4,
 			},
-			Output: &Fragment{
+			Output: &TextFragment{
 				OldLines: 3,
 				NewLines: 4,
-				Lines: []FragmentLine{
+				Lines: []Line{
 					{OpContext, "context line\n"},
 					{OpContext, "\n"},
 					{OpAdd, "new line\n"},
@@ -299,7 +299,7 @@ func TestParseTextChunk(t *testing.T) {
 ?wat line
  context line
 `,
-			Fragment: Fragment{
+			Fragment: TextFragment{
 				OldLines: 3,
 				NewLines: 3,
 			},
@@ -311,7 +311,7 @@ func TestParseTextChunk(t *testing.T) {
 +new line 1
  context line
 `,
-			Fragment: Fragment{
+			Fragment: TextFragment{
 				OldLines: 2,
 				NewLines: 5,
 			},
@@ -347,7 +347,7 @@ func TestParseTextFragments(t *testing.T) {
 		Input string
 		File  File
 
-		Fragments []*Fragment
+		Fragments []*TextFragment
 		Err       bool
 	}{
 		"multipleChanges": {
@@ -367,13 +367,13 @@ func TestParseTextFragments(t *testing.T) {
 +new line 3
  context line
 `,
-			Fragments: []*Fragment{
+			Fragments: []*TextFragment{
 				{
 					OldPosition: 1,
 					OldLines:    3,
 					NewPosition: 1,
 					NewLines:    2,
-					Lines: []FragmentLine{
+					Lines: []Line{
 						{OpContext, "context line\n"},
 						{OpDelete, "old line 1\n"},
 						{OpContext, "context line\n"},
@@ -387,7 +387,7 @@ func TestParseTextFragments(t *testing.T) {
 					OldLines:    3,
 					NewPosition: 7,
 					NewLines:    3,
-					Lines: []FragmentLine{
+					Lines: []Line{
 						{OpContext, "context line\n"},
 						{OpDelete, "old line 2\n"},
 						{OpAdd, "new line 1\n"},
@@ -403,7 +403,7 @@ func TestParseTextFragments(t *testing.T) {
 					OldLines:    3,
 					NewPosition: 14,
 					NewLines:    4,
-					Lines: []FragmentLine{
+					Lines: []Line{
 						{OpContext, "context line\n"},
 						{OpDelete, "old line 3\n"},
 						{OpAdd, "new line 2\n"},
@@ -461,8 +461,8 @@ func TestParseTextFragments(t *testing.T) {
 			}
 
 			for i, frag := range test.Fragments {
-				if !reflect.DeepEqual(frag, file.Fragments[i]) {
-					t.Errorf("incorrect fragment at position %d\nexpected: %+v\nactual: %+v", i, frag, file.Fragments[i])
+				if !reflect.DeepEqual(frag, file.TextFragments[i]) {
+					t.Errorf("incorrect fragment at position %d\nexpected: %+v\nactual: %+v", i, frag, file.TextFragments[i])
 				}
 			}
 		})
