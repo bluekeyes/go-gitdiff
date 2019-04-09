@@ -341,7 +341,7 @@ func (p *parser) ParseBinaryMarker() (isBinary bool, hasData bool, err error) {
 	}
 
 	if err = p.Next(); err != nil && err != io.EOF {
-		return true, hasData, err
+		return false, false, err
 	}
 	return true, hasData, nil
 }
