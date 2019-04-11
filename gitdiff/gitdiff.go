@@ -98,6 +98,7 @@ func (op LineOp) String() string {
 // BinaryFragment describes changes to a binary file.
 type BinaryFragment struct {
 	Method BinaryPatchMethod
+	Size   int64
 	Data   []byte
 }
 

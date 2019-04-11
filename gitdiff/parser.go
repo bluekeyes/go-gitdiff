@@ -7,6 +7,7 @@ import (
 	"encoding/ascii85"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"strconv"
 	"strings"
 )
@@ -326,26 +327,36 @@ func (p *parser) ParseBinaryFragments(f *File) (n int, err error) {
 	}
 
 	f.IsBinary = true
-	if hasData {
-		forward, err := p.ParseBinaryFragment()
-		if err != nil {
-			return n, err
-		}
-		if forward == nil {
-			return n, p.Errorf(0, "missing data for binary patch")
-		}
-		f.BinaryFragment = forward
-		n++
-
-		// valid for reverse to not exist, but it must be valid if present
-		reverse, err := p.ParseBinaryFragment()
-		if err != nil {
-			return n, err
-		}
-		f.ReverseBinaryFragment = reverse
+	if !hasData {
+		return 0, nil
 	}
 
-	return n, nil
+	forward, err := p.ParseBinaryFragmentHeader()
+	if err != nil {
+		return 0, err
+	}
+	if forward == nil {
+		return 0, p.Errorf(0, "missing data for binary patch")
+	}
+	if err := p.ParseBinaryChunk(forward); err != nil {
+		return 0, err
+	}
+	f.BinaryFragment = forward
+
+	// valid for reverse to not exist, but it must be valid if present
+	reverse, err := p.ParseBinaryFragmentHeader()
+	if err != nil {
+		return 1, err
+	}
+	if reverse == nil {
+		return 1, nil
+	}
+	if err := p.ParseBinaryChunk(reverse); err != nil {
+		return 1, err
+	}
+	f.ReverseBinaryFragment = reverse
+
+	return 1, nil
 }
 
 func (p *parser) ParseBinaryMarker() (isBinary bool, hasData bool, err error) {
@@ -364,14 +375,7 @@ func (p *parser) ParseBinaryMarker() (isBinary bool, hasData bool, err error) {
 	return true, hasData, nil
 }
 
-func (p *parser) ParseBinaryFragment() (*BinaryFragment, error) {
-	// TODO(bkeyes): split this function into small parts
-	// TODO(bkeyes): add summary of data format so this is less mysterious
-	const (
-		shortestValidLine = "A00000\n"
-		maxBytesPerLine   = 52
-	)
-
+func (p *parser) ParseBinaryFragmentHeader() (*BinaryFragment, error) {
 	parts := strings.SplitN(p.Line(0), " ", 2)
 	if len(parts) < 2 {
 		return nil, nil
@@ -387,32 +391,41 @@ func (p *parser) ParseBinaryFragment() (*BinaryFragment, error) {
 		return nil, nil
 	}
 
-	totalBytes, err := strconv.ParseInt(parts[1], 10, 64)
-	if err != nil {
+	var err error
+	if frag.Size, err = strconv.ParseInt(parts[1], 10, 64); err != nil {
 		nerr := err.(*strconv.NumError)
-		return nil, p.Errorf(0, "binary patch: invalid data length: %v", nerr.Err)
+		return nil, p.Errorf(0, "binary patch: invalid size: %v", nerr.Err)
 	}
+
+	if err := p.Next(); err != nil && err != io.EOF {
+		return nil, err
+	}
+	return frag, nil
+}
+
+func (p *parser) ParseBinaryChunk(frag *BinaryFragment) error {
+	// Binary fragments are encoded as a series of base85 encoded lines. Each
+	// line starts with a character in [A-Za-z] giving the number of bytes on
+	// the line, where A = 1 and z = 52, and ends with a newline character.
+	//
+	// The base85 encoding means each line is a multiple of 5 characters + 2
+	// additional characters for the length byte and the newline. The fragment
+	// ends with a blank line.
+	const (
+		shortestValidLine = "A00000\n"
+		maxBytesPerLine   = 52
+	)
 
 	var data bytes.Buffer
 	buf := make([]byte, maxBytesPerLine)
-
 	for {
-		if err := p.Next(); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
 		line := p.Line(0)
-
 		if line == "\n" {
-			// blank line indicates the end of the fragment
 			break
 		}
 
-		// base85 encoding means each line is a multiple of 5 + first char and newline
 		if len(line) < len(shortestValidLine) || (len(line)-2)%5 != 0 {
-			return nil, p.Errorf(0, "binary patch: corrupt data line")
+			return p.Errorf(0, "binary patch: corrupt data line")
 		}
 
 		byteCount := int(line[0])
@@ -422,47 +435,58 @@ func (p *parser) ParseBinaryFragment() (*BinaryFragment, error) {
 		case 'a' <= byteCount && byteCount <= 'z':
 			byteCount = byteCount - 'a' + 27
 		default:
-			return nil, p.Errorf(0, "binary patch: invalid length byte: %q", line[0])
+			return p.Errorf(0, "binary patch: invalid length byte: %q", line[0])
 		}
 
 		// base85 encodes every 4 bytes into 5 characters, with up to 3 bytes of end padding
 		maxByteCount := (len(line) - 2) / 5 * 4
 		if byteCount >= maxByteCount || byteCount < maxByteCount-3 {
-			return nil, p.Errorf(0, "binary patch: incorrect byte count: %d", byteCount)
+			return p.Errorf(0, "binary patch: incorrect byte count: %d", byteCount)
 		}
 
 		ndst, _, err := ascii85.Decode(buf, []byte(line[1:]), byteCount < maxBytesPerLine)
 		if err != nil {
-			return nil, p.Errorf(0, "binary patch: %v", err)
+			return p.Errorf(0, "binary patch: %v", err)
 		}
 		if ndst != byteCount {
-			return nil, p.Errorf(0, "binary patch: expected %d bytes, but decoded %d", byteCount, ndst)
+			return p.Errorf(0, "binary patch: %d byte line decoded as %d", byteCount, ndst)
 		}
 		data.Write(buf[:ndst])
+
+		if err := p.Next(); err != nil {
+			if err == io.EOF {
+				return p.Errorf(0, "binary patch: unexpected EOF")
+			}
+			return err
+		}
 	}
 
-	if err := inflateBinaryChunk(frag, &data, totalBytes); err != nil {
-		return nil, p.Errorf(0, "binary patch: %v", err)
+	if err := inflateBinaryChunk(frag, &data); err != nil {
+		return p.Errorf(0, "binary patch: %v", err)
 	}
 
 	// consume the empty line that ended the fragment
 	if err := p.Next(); err != nil && err != io.EOF {
-		return nil, err
+		return err
 	}
-	return frag, nil
+	return nil
 }
 
-func inflateBinaryChunk(frag *BinaryFragment, r io.Reader, length int64) error {
-	data := make([]byte, length)
-
+func inflateBinaryChunk(frag *BinaryFragment, r io.Reader) (err error) {
 	inflater := flate.NewReader(r)
-	if _, err := io.ReadFull(inflater, frag.Data); err != nil {
-		return err
-	}
-	if err := inflater.Close(); err != nil {
-		return err
-	}
+	defer func() {
+		if cerr := inflater.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
 
+	data, err := ioutil.ReadAll(inflater)
+	if err != nil {
+		return err
+	}
+	if int64(len(data)) != frag.Size {
+		return fmt.Errorf("%d byte fragment inflated to %d", frag.Size, len(data))
+	}
 	frag.Data = data
 	return nil
 }
