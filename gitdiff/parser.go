@@ -376,7 +376,7 @@ func (p *parser) ParseBinaryMarker() (isBinary bool, hasData bool, err error) {
 }
 
 func (p *parser) ParseBinaryFragmentHeader() (*BinaryFragment, error) {
-	parts := strings.SplitN(p.Line(0), " ", 2)
+	parts := strings.SplitN(strings.TrimSuffix(p.Line(0), "\n"), " ", 2)
 	if len(parts) < 2 {
 		return nil, nil
 	}
