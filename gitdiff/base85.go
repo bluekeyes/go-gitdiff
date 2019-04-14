@@ -4,21 +4,17 @@ import (
 	"fmt"
 )
 
-const (
-	base85Alphabet = "0123456789" +
-		"ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-		"abcdefghijklmnopqrstuvwxyz" +
-		"!#$%&()*+-;<=>?@^_`{|}~"
-)
-
 var (
-	de85 map[byte]byte
+	b85Table map[byte]byte
+	b85Alpha = []byte(
+		"0123456789" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + "abcdefghijklmnopqrstuvwxyz" + "!#$%&()*+-;<=>?@^_`{|}~",
+	)
 )
 
 func init() {
-	de85 = make(map[byte]byte)
-	for i, c := range base85Alphabet {
-		de85[byte(c)] = byte(i)
+	b85Table = make(map[byte]byte)
+	for i, c := range b85Alpha {
+		b85Table[c] = byte(i)
 	}
 }
 
@@ -29,7 +25,7 @@ func base85Decode(dst, src []byte) error {
 	var v uint32
 	var n, ndst int
 	for i, b := range src {
-		if b, ok := de85[b]; ok {
+		if b, ok := b85Table[b]; ok {
 			v = 85*v + uint32(b)
 			n++
 		} else {
@@ -50,7 +46,7 @@ func base85Decode(dst, src []byte) error {
 		return fmt.Errorf("base85 data terminated by underpadded sequence")
 	}
 	if ndst < len(dst) {
-		return fmt.Errorf("base85 data is too short: %d < %d", ndst, len(dst))
+		return fmt.Errorf("base85 data underrun: %d < %d", ndst, len(dst))
 	}
 	return nil
 }
