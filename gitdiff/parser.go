@@ -3,8 +3,7 @@ package gitdiff
 import (
 	"bufio"
 	"bytes"
-	"compress/flate"
-	"encoding/ascii85"
+	"compress/zlib"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -423,35 +422,30 @@ func (p *parser) ParseBinaryChunk(frag *BinaryFragment) error {
 		if line == "\n" {
 			break
 		}
-
 		if len(line) < len(shortestValidLine) || (len(line)-2)%5 != 0 {
 			return p.Errorf(0, "binary patch: corrupt data line")
 		}
 
-		byteCount := int(line[0])
+		byteCount, seq := int(line[0]), line[1:len(line)-1]
 		switch {
 		case 'A' <= byteCount && byteCount <= 'Z':
 			byteCount = byteCount - 'A' + 1
 		case 'a' <= byteCount && byteCount <= 'z':
 			byteCount = byteCount - 'a' + 27
 		default:
-			return p.Errorf(0, "binary patch: invalid length byte: %q", line[0])
+			return p.Errorf(0, "binary patch: invalid length byte")
 		}
 
 		// base85 encodes every 4 bytes into 5 characters, with up to 3 bytes of end padding
-		maxByteCount := (len(line) - 2) / 5 * 4
-		if byteCount >= maxByteCount || byteCount < maxByteCount-3 {
-			return p.Errorf(0, "binary patch: incorrect byte count: %d", byteCount)
+		maxByteCount := len(seq) / 5 * 4
+		if byteCount > maxByteCount || byteCount < maxByteCount-3 {
+			return p.Errorf(0, "binary patch: incorrect byte count")
 		}
 
-		ndst, _, err := ascii85.Decode(buf, []byte(line[1:]), byteCount < maxBytesPerLine)
-		if err != nil {
+		if err := base85Decode(buf[:byteCount], []byte(seq)); err != nil {
 			return p.Errorf(0, "binary patch: %v", err)
 		}
-		if ndst != byteCount {
-			return p.Errorf(0, "binary patch: %d byte line decoded as %d", byteCount, ndst)
-		}
-		data.Write(buf[:ndst])
+		data.Write(buf[:byteCount])
 
 		if err := p.Next(); err != nil {
 			if err == io.EOF {
@@ -472,18 +466,20 @@ func (p *parser) ParseBinaryChunk(frag *BinaryFragment) error {
 	return nil
 }
 
-func inflateBinaryChunk(frag *BinaryFragment, r io.Reader) (err error) {
-	inflater := flate.NewReader(r)
-	defer func() {
-		if cerr := inflater.Close(); cerr != nil && err == nil {
-			err = cerr
-		}
-	}()
-
-	data, err := ioutil.ReadAll(inflater)
+func inflateBinaryChunk(frag *BinaryFragment, r io.Reader) error {
+	zr, err := zlib.NewReader(r)
 	if err != nil {
 		return err
 	}
+
+	data, err := ioutil.ReadAll(zr)
+	if err != nil {
+		return err
+	}
+	if err := zr.Close(); err != nil {
+		return err
+	}
+
 	if int64(len(data)) != frag.Size {
 		return fmt.Errorf("%d byte fragment inflated to %d", frag.Size, len(data))
 	}
