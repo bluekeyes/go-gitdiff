@@ -302,7 +302,7 @@ func parseMode(s string) (os.FileMode, error) {
 
 // parseName extracts a file name from the start of a string and returns the
 // name and the index of the first character after the name. If the name is
-// unquoted and term is non-negative, parsing stops at the first occurance of
+// unquoted and term is non-negative, parsing stops at the first occurrence of
 // term. Otherwise parsing of unquoted names stops at the first space or tab.
 //
 // If the name is exactly "/dev/null", no further processing occurs. Otherwise,

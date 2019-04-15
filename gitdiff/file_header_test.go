@@ -368,7 +368,7 @@ func TestParseName(t *testing.T) {
 			}
 
 			if output != test.Output {
-				t.Errorf("incorect output: expected %q, actual: %q", test.Output, output)
+				t.Errorf("incorrect output: expected %q, actual: %q", test.Output, output)
 			}
 			if n != test.N {
 				t.Errorf("incorrect next position: expected %d, actual %d", test.N, n)

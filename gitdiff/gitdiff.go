@@ -56,7 +56,7 @@ type TextFragment struct {
 	Lines []Line
 }
 
-// Header returns the cannonical header of this fragment.
+// Header returns the canonical header of this fragment.
 func (f *TextFragment) Header() string {
 	return fmt.Sprintf("@@ -%d,%d +%d,%d @@ %s", f.OldPosition, f.OldLines, f.NewPosition, f.NewLines, f.Comment)
 }
