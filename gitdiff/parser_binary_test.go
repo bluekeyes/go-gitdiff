@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"io"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -115,23 +116,58 @@ func TestParseBinaryChunk(t *testing.T) {
 		Input    string
 		Fragment BinaryFragment
 		Output   []byte
-		Err      bool
+		Err      string
 	}{
-		"newFile": {
-			Input: "gcmZQzU|?i`U?w2V48*KJ%mKu_Kr9NxN<eH500b)lkN^Mx\n\n",
+		"singleline": {
+			Input: "TcmZQzU|?i`U?w2V48*Je09XJG\n\n",
 			Fragment: BinaryFragment{
-				Size: 40,
+				Size: 20,
 			},
-			Output: fib(10),
+			Output: fib(5, binary.BigEndian),
 		},
-		"newFileMultiline": {
+		"multiline": {
 			Input: "zcmZQzU|?i`U?w2V48*KJ%mKu_Kr9NxN<eH5#F0Qe0f=7$l~*z_FeL$%-)3N7vt?l5\n" +
 				"zl3-vE2xVZ9%4J~CI>f->s?WfX|B-=Vs{#X~svra7Ekg#T|4s}nH;WnAZ)|1Y*`&cB\n" +
 				"s(sh?X(Uz6L^!Ou&aF*u`J!eibJifSrv0z>$Q%Hd(^HIJ<Y?5`S0gT5UE&u=k\n\n",
 			Fragment: BinaryFragment{
 				Size: 160,
 			},
-			Output: fib(40),
+			Output: fib(40, binary.BigEndian),
+		},
+		"shortLine": {
+			Input: "A00\n\n",
+			Err:   "corrupt data line",
+		},
+		"underpaddedLine": {
+			Input: "H00000000\n\n",
+			Err:   "corrupt data line",
+		},
+		"invalidLengthByte": {
+			Input: "!00000\n\n",
+			Err:   "invalid length byte",
+		},
+		"miscountedLine": {
+			Input: "H00000\n\n",
+			Err:   "incorrect byte count",
+		},
+		"invalidEncoding": {
+			Input: "TcmZQzU|?i'U?w2V48*Je09XJG\n",
+			Err:   "invalid base85 byte",
+		},
+		"noTrailingEmptyLine": {
+			Input: "TcmZQzU|?i`U?w2V48*Je09XJG\n",
+			Err:   "unexpected EOF",
+		},
+		"invalidCompression": {
+			Input: "F007GV%KiWV\n\n",
+			Err:   "zlib",
+		},
+		"incorrectSize": {
+			Input: "TcmZQzU|?i`U?w2V48*Je09XJG\n\n",
+			Fragment: BinaryFragment{
+				Size: 16,
+			},
+			Err: "16 byte fragment inflated to 20",
 		},
 	}
 
@@ -141,9 +177,9 @@ func TestParseBinaryChunk(t *testing.T) {
 
 			frag := test.Fragment
 			err := p.ParseBinaryChunk(&frag)
-			if test.Err {
-				if err == nil || err == io.EOF {
-					t.Fatalf("expected error parsing binary chunk, but got %v", err)
+			if test.Err != "" {
+				if err == nil || !strings.Contains(err.Error(), test.Err) {
+					t.Fatalf("expected error containing %q parsing binary chunk, but got %v", test.Err, err)
 				}
 				return
 			}
@@ -157,15 +193,14 @@ func TestParseBinaryChunk(t *testing.T) {
 	}
 }
 
-func fib(n int) []byte {
-	seq := []uint32{1, 1}
-	for i := 2; i < n; i++ {
-		seq = append(seq, seq[i-1]+seq[i-2])
-	}
-
+func fib(n int, ord binary.ByteOrder) []byte {
 	buf := make([]byte, 4*n)
-	for i, v := range seq[:n] {
-		binary.BigEndian.PutUint32(buf[i*4:], v)
+	for i := 0; i < len(buf); i += 4 {
+		if i < 8 {
+			ord.PutUint32(buf[i:], 1)
+		} else {
+			ord.PutUint32(buf[i:], ord.Uint32(buf[i-4:])+ord.Uint32(buf[i-8:]))
+		}
 	}
 	return buf
 }

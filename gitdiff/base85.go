@@ -29,7 +29,7 @@ func base85Decode(dst, src []byte) error {
 			v = 85*v + uint32(b)
 			n++
 		} else {
-			return fmt.Errorf("invalid base85 byte at index %d: 0x%x", i, b)
+			return fmt.Errorf("invalid base85 byte at index %d: 0x%X", i, src[i])
 		}
 		if n == 5 {
 			rem := len(dst) - ndst
