@@ -165,6 +165,52 @@ diff --git a/file.txt b/file.txt
 			},
 			EndLine: "@@ -1,2 +1,2 @@\n",
 		},
+		"ParseBinaryMarker": {
+			Input: `Binary files differ
+diff --git a/file.txt b/file.txt
+`,
+			Parse: func(p *parser) error {
+				_, _, err := p.ParseBinaryMarker()
+				return err
+			},
+			EndLine: "diff --git a/file.txt b/file.txt\n",
+		},
+		"ParseBinaryFragmentHeader": {
+			Input: `literal 0
+HcmV?d00001
+`,
+			Parse: func(p *parser) error {
+				_, err := p.ParseBinaryFragmentHeader()
+				return err
+			},
+			EndLine: "HcmV?d00001\n",
+		},
+		"ParseBinaryChunk": {
+			Input: "TcmZQzU|?i`" + `U?w2V48*Je09XJG
+
+literal 0
+`,
+			Parse: func(p *parser) error {
+				return p.ParseBinaryChunk(&BinaryFragment{Size: 20})
+			},
+			EndLine: "literal 0\n",
+		},
+		"ParseBinaryFragments": {
+			Input: `GIT binary patch
+literal 40
+gcmZQzU|?i` + "`" + `U?w2V48*KJ%mKu_Kr9NxN<eH500b)lkN^Mx
+
+literal 0
+HcmV?d00001
+
+diff --git a/file.txt b/file.txt
+`,
+			Parse: func(p *parser) error {
+				_, err := p.ParseBinaryFragments(&File{})
+				return err
+			},
+			EndLine: "diff --git a/file.txt b/file.txt\n",
+		},
 	}
 
 	for name, test := range tests {
