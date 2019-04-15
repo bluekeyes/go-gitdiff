@@ -2,6 +2,7 @@ package gitdiff
 
 import (
 	"bufio"
+	"encoding/binary"
 	"encoding/json"
 	"io"
 	"os"
@@ -280,7 +281,7 @@ a wild fragment appears?
 }
 
 func TestParse(t *testing.T) {
-	expectedFragments := []*TextFragment{
+	textFragments := []*TextFragment{
 		{
 			OldPosition: 3,
 			OldLines:    6,
@@ -321,7 +322,7 @@ func TestParse(t *testing.T) {
 		},
 	}
 
-	expectedPreamble := `commit 5d9790fec7d95aa223f3d20936340bf55ff3dcbe
+	textPreamble := `commit 5d9790fec7d95aa223f3d20936340bf55ff3dcbe
 Author: Morton Haypenny <mhaypenny@example.com>
 Date:   Tue Apr 2 22:55:40 2019 -0700
 
@@ -331,6 +332,13 @@ Date:   Tue Apr 2 22:55:40 2019 -0700
 
 `
 
+	binaryPreamble := `commit 5d9790fec7d95aa223f3d20936340bf55ff3dcbe
+Author: Morton Haypenny <mhaypenny@example.com>
+Date:   Tue Apr 2 22:55:40 2019 -0700
+
+    A binary file with the first 10 fibonacci numbers.
+
+`
 	tests := map[string]struct {
 		InputFile string
 		Output    []*File
@@ -346,10 +354,10 @@ Date:   Tue Apr 2 22:55:40 2019 -0700
 					OldMode:       os.FileMode(0100644),
 					OldOIDPrefix:  "ebe9fa54",
 					NewOIDPrefix:  "fe103e1d",
-					TextFragments: expectedFragments,
+					TextFragments: textFragments,
 				},
 			},
-			Preamble: expectedPreamble,
+			Preamble: textPreamble,
 		},
 		"twoFiles": {
 			InputFile: "testdata/two_files.patch",
@@ -360,7 +368,7 @@ Date:   Tue Apr 2 22:55:40 2019 -0700
 					OldMode:       os.FileMode(0100644),
 					OldOIDPrefix:  "ebe9fa54",
 					NewOIDPrefix:  "fe103e1d",
-					TextFragments: expectedFragments,
+					TextFragments: textFragments,
 				},
 				{
 					OldName:       "dir/file2.txt",
@@ -368,10 +376,35 @@ Date:   Tue Apr 2 22:55:40 2019 -0700
 					OldMode:       os.FileMode(0100644),
 					OldOIDPrefix:  "417ebc70",
 					NewOIDPrefix:  "67514b7f",
-					TextFragments: expectedFragments,
+					TextFragments: textFragments,
 				},
 			},
-			Preamble: expectedPreamble,
+			Preamble: textPreamble,
+		},
+		"newBinaryFile": {
+			InputFile: "testdata/new_binary_file.patch",
+			Output: []*File{
+				{
+					OldName:      "",
+					NewName:      "dir/ten.bin",
+					NewMode:      os.FileMode(0100644),
+					OldOIDPrefix: "0000000000000000000000000000000000000000",
+					NewOIDPrefix: "77b068ba48c356156944ea714740d0d5ca07bfec",
+					IsNew:        true,
+					IsBinary:     true,
+					BinaryFragment: &BinaryFragment{
+						Method: BinaryPatchLiteral,
+						Size:   40,
+						Data:   fib(10, binary.BigEndian),
+					},
+					ReverseBinaryFragment: &BinaryFragment{
+						Method: BinaryPatchLiteral,
+						Size:   0,
+						Data:   []byte{},
+					},
+				},
+			},
+			Preamble: binaryPreamble,
 		},
 	}
 

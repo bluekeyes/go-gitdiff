@@ -193,6 +193,114 @@ func TestParseBinaryChunk(t *testing.T) {
 	}
 }
 
+func TestParseBinaryFragments(t *testing.T) {
+	tests := map[string]struct {
+		Input string
+		File  File
+
+		Binary          bool
+		Fragment        *BinaryFragment
+		ReverseFragment *BinaryFragment
+		Err             bool
+	}{
+		"dataWithReverse": {
+			Input: `GIT binary patch
+literal 40
+gcmZQzU|?i` + "`" + `U?w2V48*KJ%mKu_Kr9NxN<eH500b)lkN^Mx
+
+literal 0
+HcmV?d00001
+
+`,
+			Binary: true,
+			Fragment: &BinaryFragment{
+				Method: BinaryPatchLiteral,
+				Size:   40,
+				Data:   fib(10, binary.BigEndian),
+			},
+			ReverseFragment: &BinaryFragment{
+				Method: BinaryPatchLiteral,
+				Size:   0,
+				Data:   []byte{},
+			},
+		},
+		"dataWithoutReverse": {
+			Input: `GIT binary patch
+literal 40
+gcmZQzU|?i` + "`" + `U?w2V48*KJ%mKu_Kr9NxN<eH500b)lkN^Mx
+
+`,
+			Binary: true,
+			Fragment: &BinaryFragment{
+				Method: BinaryPatchLiteral,
+				Size:   40,
+				Data:   fib(10, binary.BigEndian),
+			},
+		},
+		"noData": {
+			Input:  "Binary files differ\n",
+			Binary: true,
+		},
+		"text": {
+			Input: `@@ -1 +1 @@
+-old line
++new line
+`,
+			Binary: false,
+		},
+		"missingData": {
+			Input: "GIT binary patch\n",
+			Err:   true,
+		},
+		"invalidData": {
+			Input: `GIT binary patch
+literal 20
+TcmZQzU|?i'U?w2V48*Je09XJG
+
+`,
+			Err: true,
+		},
+		"invalidReverseData": {
+			Input: `GIT binary patch
+literal 20
+TcmZQzU|?i` + "`" + `U?w2V48*Je09XJG
+
+literal 0
+zcmV?d00001
+
+`,
+			Err: true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			p := newTestParser(test.Input, true)
+
+			file := test.File
+			_, err := p.ParseBinaryFragments(&file)
+			if test.Err {
+				if err == nil || err == io.EOF {
+					t.Fatalf("expected error parsing binary fragments, but got %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error parsing binary fragments: %v", err)
+			}
+			if test.Binary != file.IsBinary {
+				t.Errorf("incorrect binary state: expected %t, actual %t", test.Binary, file.IsBinary)
+			}
+			if !reflect.DeepEqual(test.Fragment, file.BinaryFragment) {
+				t.Errorf("incorrect binary fragment\nexpected: %+v\n  actual: %+v", test.Fragment, file.BinaryFragment)
+			}
+			if !reflect.DeepEqual(test.ReverseFragment, file.ReverseBinaryFragment) {
+				t.Errorf("incorrect reverse binary fragment\nexpected: %+v\n  actual: %+v", test.ReverseFragment, file.ReverseBinaryFragment)
+			}
+		})
+	}
+}
+
 func fib(n int, ord binary.ByteOrder) []byte {
 	buf := make([]byte, 4*n)
 	for i := 0; i < len(buf); i += 4 {
