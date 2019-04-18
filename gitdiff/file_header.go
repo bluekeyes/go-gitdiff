@@ -13,6 +13,53 @@ const (
 	devNull = "/dev/null"
 )
 
+// ParseNextFileHeader finds and parses the next file header in the stream. If
+// a header is found, it returns a file and all input before the header. It
+// returns nil if no headers are found before the end of the input.
+func (p *parser) ParseNextFileHeader() (*File, string, error) {
+	var preamble strings.Builder
+	var file *File
+	for {
+		// check for disconnected fragment headers (corrupt patch)
+		frag, err := p.ParseTextFragmentHeader()
+		if err != nil {
+			// not a valid header, nothing to worry about
+			goto NextLine
+		}
+		if frag != nil {
+			return nil, "", p.Errorf(-1, "patch fragment without file header: %s", frag.Header())
+		}
+
+		// check for a git-generated patch
+		file, err = p.ParseGitFileHeader()
+		if err != nil {
+			return nil, "", err
+		}
+		if file != nil {
+			return file, preamble.String(), nil
+		}
+
+		// check for a "traditional" patch
+		file, err = p.ParseTraditionalFileHeader()
+		if err != nil {
+			return nil, "", err
+		}
+		if file != nil {
+			return file, preamble.String(), nil
+		}
+
+	NextLine:
+		preamble.WriteString(p.Line(0))
+		if err := p.Next(); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, "", err
+		}
+	}
+	return nil, "", nil
+}
+
 func (p *parser) ParseGitFileHeader() (*File, error) {
 	const prefix = "diff --git "
 
