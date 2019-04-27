@@ -1,13 +1,12 @@
 package gitdiff
 
 import (
-	"bufio"
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"io"
 	"os"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -490,7 +489,7 @@ Date:   Tue Apr 2 22:55:40 2019 -0700
 }
 
 func newTestParser(input string, init bool) *parser {
-	p := &parser{r: bufio.NewReader(strings.NewReader(input))}
+	p := newParser(bytes.NewBufferString(input))
 	if init {
 		_ = p.Next()
 	}
