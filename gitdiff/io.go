@@ -2,6 +2,7 @@ package gitdiff
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 )
 
@@ -14,6 +15,11 @@ import (
 // returns err != nil if and only if the returned data does not end in delim.
 type StringReader interface {
 	ReadString(delim byte) (string, error)
+}
+
+type readStringReader interface {
+	io.Reader
+	StringReader
 }
 
 // LineReader is the interface that wraps the ReadLine method.
@@ -31,12 +37,12 @@ type LineReader interface {
 	ReadLine() (string, int, error)
 }
 
-// NewLineReader returns a LineReader for a reader starting at a specific line
-// using the newline character, \n, as a line separator. If r is a
-// StringReader, it is used directly. Otherwise, it is wrapped in a way that
-// may read extra data from the underlying input.
+// NewLineReader returns a LineReader starting at a specific line and using the
+// newline character, \n, as a line separator. If r is a StringReader, it is
+// used directly. Otherwise, it is wrapped in a way that may read extra data
+// from the underlying input.
 func NewLineReader(r io.Reader, lineno int) LineReader {
-	sr, ok := r.(StringReader)
+	sr, ok := r.(readStringReader)
 	if !ok {
 		sr = bufio.NewReader(r)
 	}
@@ -44,7 +50,7 @@ func NewLineReader(r io.Reader, lineno int) LineReader {
 }
 
 type lineReader struct {
-	r StringReader
+	r readStringReader
 	n int
 }
 
@@ -55,4 +61,18 @@ func (lr *lineReader) ReadLine() (line string, lineno int, err error) {
 		lr.n++
 	}
 	return
+}
+
+// unwrapLineReader returns a plain io.Reader that was converted to a
+// LineReader by wrapping or casting. It should only be called from functions
+// that accept an io.Reader as an argument and then convert it.
+func unwrapLineReader(lr LineReader) io.Reader {
+	switch r := lr.(type) {
+	case io.Reader:
+		return r
+	case *lineReader:
+		return r.r
+	default:
+		panic(fmt.Sprintf("%T does not implement io.Reader and is not a gitdiff wrapper", lr))
+	}
 }
