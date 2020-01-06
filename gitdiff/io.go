@@ -27,13 +27,15 @@ type readStringReader interface {
 // ReadLine reads the next full line in the input, returing the the data
 // including the line ending character(s) and the zero-indexed line number.  If
 // ReadLine encounters an error before reaching the end of the line, it returns
-// the data read before the error and the error itself (often io.EOF). ReadLine
-// returns err != nil if and only if the returned data is not a complete line.
+// the data read before the error, the number of the line, and the error itself
+// (often io.EOF). ReadLine returns err != nil if and only if the returned data
+// is not a complete line.
 //
 // If an implementation defines other methods for reading the same input, line
 // numbers may be incorrect if calls to ReadLine are mixed with calls to other
 // read methods.
 type LineReader interface {
+	// TODO(bkeyes): consider making lineno int64 to match fragment types
 	ReadLine() (string, int, error)
 }
 
