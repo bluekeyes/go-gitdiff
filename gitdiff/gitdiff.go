@@ -61,6 +61,72 @@ func (f *TextFragment) Header() string {
 	return fmt.Sprintf("@@ -%d,%d +%d,%d @@ %s", f.OldPosition, f.OldLines, f.NewPosition, f.NewLines, f.Comment)
 }
 
+// Validate checks that the fragment is self-consistent and appliable. Validate
+// returns an error if and only if the fragment is invalid.
+func (f *TextFragment) Validate() error {
+	var (
+		oldLines, newLines                     int64
+		leadingContext, trailingContext        int64
+		contextLines, addedLines, deletedLines int64
+	)
+
+	// count the types of lines in the fragment content
+	for i, line := range f.Lines {
+		switch line.Op {
+		case OpContext:
+			oldLines++
+			newLines++
+			contextLines++
+			if addedLines == 0 && deletedLines == 0 {
+				leadingContext++
+			} else {
+				trailingContext++
+			}
+		case OpAdd:
+			newLines++
+			addedLines++
+			trailingContext = 0
+		case OpDelete:
+			oldLines++
+			deletedLines++
+			trailingContext = 0
+		default:
+			return fmt.Errorf("unknown operator %q on line %d", line.Op, i+1)
+		}
+	}
+
+	// check the actual counts against the reported counts
+	if oldLines != f.OldLines {
+		return lineCountErr("old", oldLines, f.OldLines)
+	}
+	if newLines != f.NewLines {
+		return lineCountErr("new", newLines, f.NewLines)
+	}
+	if leadingContext != f.LeadingContext {
+		return lineCountErr("leading context", leadingContext, f.LeadingContext)
+	}
+	if trailingContext != f.TrailingContext {
+		return lineCountErr("trailing context", trailingContext, f.TrailingContext)
+	}
+	if addedLines != f.LinesAdded {
+		return lineCountErr("added", addedLines, f.LinesAdded)
+	}
+	if deletedLines != f.LinesDeleted {
+		return lineCountErr("deleted", deletedLines, f.LinesDeleted)
+	}
+
+	// if a file is being created, it can only contain additions
+	if f.OldPosition == 0 && f.OldLines != 0 {
+		return fmt.Errorf("file creation fragment contains context or deletion lines")
+	}
+
+	return nil
+}
+
+func lineCountErr(kind string, actual, reported int64) error {
+	return fmt.Errorf("fragment contains %d %s lines but reports %d", actual, kind, reported)
+}
+
 // Line is a line in a text fragment.
 type Line struct {
 	Op   LineOp
