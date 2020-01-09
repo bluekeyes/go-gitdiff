@@ -122,19 +122,22 @@ func (f *TextFragment) ApplyStrict(dst io.Writer, src LineReader) error {
 		return applyError(err, lineNum(n))
 	}
 
+	used := int64(0)
 	for i, line := range f.Lines {
-		fromSrc, err := applyTextLine(dst, nextLine, line)
-		if err != nil {
+		if err := applyTextLine(dst, nextLine, line); err != nil {
 			return applyError(err, lineNum(n), fragLineNum(i))
 		}
-
-		if fromSrc && i < len(f.Lines)-1 {
+		if fromSrc(line) {
+			used++
+		}
+		// advance reader if the next fragment line appears in src and we're behind
+		if i < len(f.Lines)-1 && fromSrc(f.Lines[i+1]) && int64(n)-limit < used {
 			nextLine, n, err = src.ReadLine()
 			if err != nil {
 				if err == io.EOF {
 					err = io.ErrUnexpectedEOF
 				}
-				return applyError(err, lineNum(n), fragLineNum(i+1))
+				return applyError(err, lineNum(n), fragLineNum(i+1)) // report for _next_ line in fragment
 			}
 		}
 	}
@@ -142,12 +145,11 @@ func (f *TextFragment) ApplyStrict(dst io.Writer, src LineReader) error {
 	return nil
 }
 
-func applyTextLine(dst io.Writer, src string, line Line) (fromSrc bool, err error) {
+func applyTextLine(dst io.Writer, src string, line Line) (err error) {
 	switch line.Op {
 	case OpContext, OpDelete:
-		fromSrc = true
 		if src != line.Line {
-			return fromSrc, conflictError("fragment line does not match src line")
+			return conflictError("fragment line does not match src line")
 		}
 	}
 	switch line.Op {
@@ -155,6 +157,10 @@ func applyTextLine(dst io.Writer, src string, line Line) (fromSrc bool, err erro
 		_, err = io.WriteString(dst, line.Line)
 	}
 	return
+}
+
+func fromSrc(line Line) bool {
+	return line.Op != OpAdd
 }
 
 // copyLines copies from src to dst until the line at limit, exclusive. Returns
