@@ -166,16 +166,15 @@ func applyTextLine(dst io.Writer, src string, line Line) (err error) {
 // the line at limit and the line number. If the error is nil or io.EOF, the
 // line number equals limit. A negative limit checks that the source has no
 // more lines to read.
-func copyLines(dst io.Writer, src LineReader, limit int64) (string, int, error) {
-	// TODO(bkeyes): fix int vs int64 for limit and return value
+func copyLines(dst io.Writer, src LineReader, limit int64) (string, int64, error) {
 	for {
 		line, n, err := src.ReadLine()
 		switch {
 		case limit < 0 && err == io.EOF && line == "":
-			return "", int(limit), nil
-		case int64(n) == limit:
+			return "", limit, nil
+		case n == limit:
 			return line, n, err
-		case int64(n) > limit:
+		case n > limit:
 			if limit < 0 {
 				return "", n, conflictError("cannot create new file from non-empty src")
 			}

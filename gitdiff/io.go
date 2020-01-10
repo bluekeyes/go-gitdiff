@@ -35,15 +35,14 @@ type readStringReader interface {
 // numbers may be incorrect if calls to ReadLine are mixed with calls to other
 // read methods.
 type LineReader interface {
-	// TODO(bkeyes): consider making lineno int64 to match fragment types
-	ReadLine() (string, int, error)
+	ReadLine() (string, int64, error)
 }
 
 // NewLineReader returns a LineReader starting at a specific line and using the
 // newline character, \n, as a line separator. If r is a StringReader, it is
 // used directly. Otherwise, it is wrapped in a way that may read extra data
 // from the underlying input.
-func NewLineReader(r io.Reader, lineno int) LineReader {
+func NewLineReader(r io.Reader, lineno int64) LineReader {
 	sr, ok := r.(readStringReader)
 	if !ok {
 		sr = bufio.NewReader(r)
@@ -53,10 +52,10 @@ func NewLineReader(r io.Reader, lineno int) LineReader {
 
 type lineReader struct {
 	r readStringReader
-	n int
+	n int64
 }
 
-func (lr *lineReader) ReadLine() (line string, lineno int, err error) {
+func (lr *lineReader) ReadLine() (line string, lineno int64, err error) {
 	lineno = lr.n
 	line, err = lr.r.ReadString('\n')
 	if err == nil {

@@ -34,7 +34,7 @@ func TestLineReader(t *testing.T) {
 			if d != line.Data {
 				t.Errorf("incorrect line data: expected %q, actual %q", line.Data, d)
 			}
-			if n != i {
+			if n != int64(i) {
 				t.Errorf("incorrect line number: expected %d, actual %d", i, n)
 			}
 		}
