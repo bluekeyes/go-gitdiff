@@ -12,14 +12,18 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 		File string
 		Err  bool
 	}{
-		"createFile":   {File: "new"},
-		"deleteFile":   {File: "delete_all"},
-		"addStart":     {File: "add_start"},
-		"addMiddle":    {File: "add_middle"},
-		"addEnd":       {File: "add_end"},
-		"changeStart":  {File: "change_start"},
-		"changeMiddle": {File: "change_middle"},
-		"changeEnd":    {File: "change_end"},
+		"createFile": {File: "new"},
+		"deleteFile": {File: "delete_all"},
+
+		"addStart":    {File: "add_start"},
+		"addMiddle":   {File: "add_middle"},
+		"addEnd":      {File: "add_end"},
+		"addEndNoEOL": {File: "add_end_noeol"},
+
+		"changeStart":       {File: "change_start"},
+		"changeMiddle":      {File: "change_middle"},
+		"changeEnd":         {File: "change_end"},
+		"changeSingleNoEOL": {File: "change_single_noeol"},
 	}
 
 	for name, test := range tests {

@@ -137,6 +137,21 @@ func (fl Line) String() string {
 	return fl.Op.String() + fl.Line
 }
 
+// Old returns true if the line appears in the old content of the fragment.
+func (fl Line) Old() bool {
+	return fl.Op != OpAdd
+}
+
+// New returns true if the line appears in the new content of the fragment.
+func (fl Line) New() bool {
+	return fl.Op == OpAdd
+}
+
+// NoEOL returns true if the line is missing a trailing newline character.
+func (fl Line) NoEOL() bool {
+	return len(fl.Line) == 0 || fl.Line[len(fl.Line)-1] != '\n'
+}
+
 // LineOp describes the type of a text fragment line: context, added, or removed.
 type LineOp int
 

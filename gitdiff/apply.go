@@ -53,6 +53,9 @@ func applyError(err error, args ...interface{}) error {
 
 	e, ok := err.(*ApplyError)
 	if !ok {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
 		e = &ApplyError{err: err}
 	}
 	for _, arg := range args {
@@ -115,8 +118,8 @@ func (f *TextFragment) ApplyStrict(dst io.Writer, src LineReader) error {
 	// line numbers are zero-indexed, positions are one-indexed
 	limit := f.OldPosition - 1
 
-	// an EOF is allowed here: the fragment applies to the last line of the
-	// source but it does not have a newline character
+	// io.EOF is acceptable here: the first line of the patch is the last of
+	// the source and it has no newline character
 	nextLine, n, err := copyLines(dst, src, limit)
 	if err != nil && err != io.EOF {
 		return applyError(err, lineNum(n))
@@ -127,16 +130,16 @@ func (f *TextFragment) ApplyStrict(dst io.Writer, src LineReader) error {
 		if err := applyTextLine(dst, nextLine, line); err != nil {
 			return applyError(err, lineNum(n), fragLineNum(i))
 		}
-		if fromSrc(line) {
+		if line.Old() {
 			used++
 		}
 		// advance reader if the next fragment line appears in src and we're behind
-		if i < len(f.Lines)-1 && fromSrc(f.Lines[i+1]) && int64(n)-limit < used {
+		if i < len(f.Lines)-1 && f.Lines[i+1].Old() && int64(n)-limit < used {
 			nextLine, n, err = src.ReadLine()
-			if err != nil {
-				if err == io.EOF {
-					err = io.ErrUnexpectedEOF
-				}
+			switch {
+			case err == io.EOF && f.Lines[i+1].NoEOL():
+				continue
+			case err != nil:
 				return applyError(err, lineNum(n), fragLineNum(i+1)) // report for _next_ line in fragment
 			}
 		}
@@ -159,14 +162,10 @@ func applyTextLine(dst io.Writer, src string, line Line) (err error) {
 	return
 }
 
-func fromSrc(line Line) bool {
-	return line.Op != OpAdd
-}
-
 // copyLines copies from src to dst until the line at limit, exclusive. Returns
-// the line at limit and the line number. The line number may not equal the
-// limit if and only if a non-EOF error occurs. A negative limit means the
-// first read should return io.EOF and no data.
+// the line at limit and the line number. If the error is nil or io.EOF, the
+// line number equals limit. A negative limit checks that the source has no
+// more lines to read.
 func copyLines(dst io.Writer, src LineReader, limit int64) (string, int, error) {
 	// TODO(bkeyes): fix int vs int64 for limit and return value
 	for {
