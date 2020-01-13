@@ -2,9 +2,10 @@ package gitdiff
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"io/ioutil"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -15,7 +16,7 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 		PatchFile string
 		DstFile   string
 
-		Err string
+		Err error
 	}{
 		"createFile": {File: "text_fragment_new"},
 		"deleteFile": {File: "text_fragment_delete_all"},
@@ -34,27 +35,27 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 		"errorShortSrcBefore": {
 			SrcFile:   "text_fragment_error",
 			PatchFile: "text_fragment_error_short_src_before",
-			Err:       "unexpected EOF",
+			Err:       io.ErrUnexpectedEOF,
 		},
 		"errorShortSrc": {
 			SrcFile:   "text_fragment_error",
 			PatchFile: "text_fragment_error_short_src",
-			Err:       "unexpected EOF",
+			Err:       io.ErrUnexpectedEOF,
 		},
 		"errorContextConflict": {
 			SrcFile:   "text_fragment_error",
 			PatchFile: "text_fragment_error_context_conflict",
-			Err:       "conflict",
+			Err:       &Conflict{},
 		},
 		"errorDeleteConflict": {
 			SrcFile:   "text_fragment_error",
 			PatchFile: "text_fragment_error_delete_conflict",
-			Err:       "conflict",
+			Err:       &Conflict{},
 		},
 		"errorNewFile": {
 			SrcFile:   "text_fragment_error",
 			PatchFile: "text_fragment_error_new_file",
-			Err:       "conflict",
+			Err:       &Conflict{},
 		},
 	}
 
@@ -75,7 +76,7 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 			patch := loadFile(test.PatchFile, test.File, "patch")
 
 			var result []byte
-			if test.Err == "" {
+			if test.Err == nil {
 				result = loadFile(test.DstFile, test.File, "dst")
 			}
 
@@ -88,12 +89,12 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 
 			var dst bytes.Buffer
 			err = frag.ApplyStrict(&dst, NewLineReader(bytes.NewReader(src), 0))
-			if test.Err != "" {
+			if test.Err != nil {
 				if err == nil {
 					t.Fatalf("expected error applying fragment, but got nil")
 				}
-				if !strings.Contains(err.Error(), test.Err) {
-					t.Fatalf("incorrect apply error: expected %q, actual %q", test.Err, err.Error())
+				if !errors.Is(err, test.Err) {
+					t.Fatalf("incorrect apply error: expected: %T (%v), actual: %T (%v)", test.Err, test.Err, err, err)
 				}
 				return
 			}

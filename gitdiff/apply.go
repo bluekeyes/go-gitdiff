@@ -5,10 +5,31 @@ import (
 	"io"
 )
 
-type conflictError string
+// Conflict indicates an apply failed due to a conflict between the patch and
+// the source content.
+//
+// Users can test if an error was caused by a conflict by using errors.Is with
+// an empty Conflict:
+//
+//     if errors.Is(err, &Conflict{}) {
+//	       // handle conflict
+//     }
+//
+type Conflict struct {
+	msg string
+}
 
-func (e conflictError) Error() string {
-	return "conflict: " + string(e)
+func (c *Conflict) Error() string {
+	return "conflict: " + c.msg
+}
+
+// Is implements error matching for Conflict. Passing an empty instance of
+// Conflict always returns true.
+func (c *Conflict) Is(other error) bool {
+	if other, ok := other.(*Conflict); ok {
+		return other.msg == "" || other.msg == c.msg
+	}
+	return false
 }
 
 // ApplyError wraps an error that occurs during patch application with
@@ -27,13 +48,6 @@ type ApplyError struct {
 // Unwrap returns the wrapped error.
 func (e *ApplyError) Unwrap() error {
 	return e.err
-}
-
-// Conflict returns true if the error is due to a conflict between the fragment
-// and the source data.
-func (e *ApplyError) Conflict() bool {
-	_, ok := e.err.(conflictError)
-	return ok
 }
 
 func (e *ApplyError) Error() string {
@@ -152,7 +166,7 @@ func applyTextLine(dst io.Writer, src string, line Line) (err error) {
 	switch line.Op {
 	case OpContext, OpDelete:
 		if src != line.Line {
-			return conflictError("fragment line does not match src line")
+			return &Conflict{"fragment line does not match src line"}
 		}
 	}
 	switch line.Op {
@@ -176,9 +190,9 @@ func copyLines(dst io.Writer, src LineReader, limit int64) (string, int64, error
 			return line, n, err
 		case n > limit:
 			if limit < 0 {
-				return "", n, conflictError("cannot create new file from non-empty src")
+				return "", n, &Conflict{"cannot create new file from non-empty src"}
 			}
-			return "", n, conflictError("fragment overlaps with an applied fragment")
+			return "", n, &Conflict{"fragment overlaps with an applied fragment"}
 		case err != nil:
 			if err == io.EOF {
 				err = io.ErrUnexpectedEOF
