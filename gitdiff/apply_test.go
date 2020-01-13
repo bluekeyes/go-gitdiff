@@ -23,6 +23,7 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 		"changeStart":       {File: "change_start"},
 		"changeMiddle":      {File: "change_middle"},
 		"changeEnd":         {File: "change_end"},
+		"changeExact":       {File: "change_exact"},
 		"changeSingleNoEOL": {File: "change_single_noeol"},
 	}
 
