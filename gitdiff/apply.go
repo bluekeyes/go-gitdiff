@@ -1,8 +1,10 @@
 package gitdiff
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 )
 
 // Conflict indicates an apply failed due to a conflict between the patch and
@@ -212,5 +214,128 @@ func copyLines(dst io.Writer, src LineReader, limit int64) (string, int64, error
 // Unlike text fragments, binary fragments do not distinguish between strict
 // and non-strict application.
 func (f *BinaryFragment) Apply(dst io.Writer, src io.Reader) error {
-	panic("TODO(bkeyes): unimplemented")
+	fullSrc, err := ioutil.ReadAll(src)
+	if err != nil {
+		return err
+	}
+
+	switch f.Method {
+	case BinaryPatchLiteral:
+		if _, err := dst.Write(f.Data); err != nil {
+			return applyError(err)
+		}
+	case BinaryPatchDelta:
+		if err := applyBinaryDeltaFragment(dst, fullSrc, f.Data); err != nil {
+			return applyError(err)
+		}
+	}
+	return applyError(fmt.Errorf("unsupported binary patch method: %v", f.Method))
+}
+
+func applyBinaryDeltaFragment(dst io.Writer, src, frag []byte) error {
+	srcSize, delta := readBinaryDeltaSize(frag)
+	if srcSize != int64(len(src)) {
+		return &Conflict{"fragment src size does not match actual src size"}
+	}
+
+	dstSize, delta := readBinaryDeltaSize(delta)
+
+	for len(delta) > 0 {
+		op := delta[0]
+		if op == 0 {
+			return errors.New("invalid delta opcode 0")
+		}
+
+		var n int64
+		var err error
+		switch op & 0x80 {
+		case 0x80:
+			n, delta, err = applyBinaryDeltaCopy(dst, op, delta[1:], src)
+		case 0x00:
+			n, delta, err = applyBinaryDeltaAdd(dst, op, delta[1:])
+		}
+		if err != nil {
+			return err
+		}
+		dstSize -= n
+	}
+
+	if dstSize != 0 {
+		return errors.New("corrupt binary delta: insufficient or extra data")
+	}
+	return nil
+}
+
+// readBinaryDeltaSize reads a variable length size from a delta-encoded binary
+// fragment, returing the size and the unused data. Data is encoded as:
+//
+//    [[1xxxxxxx]...] [0xxxxxxx]
+//
+// in little-endian order, with 7 bits of the value per byte.
+func readBinaryDeltaSize(d []byte) (size int64, rest []byte) {
+	shift := uint(0)
+	for i, b := range d {
+		size |= int64(b&0x7F) << shift
+		shift += 7
+		if b <= 0x7F {
+			return size, d[i+1:]
+		}
+	}
+	return size, nil
+}
+
+// applyBinaryDeltaAdd applies an add opcode in a delta-encoded binary
+// fragment, returning the amount of data written and the usused part of the
+// fragment. An add operation takes the form:
+//
+//     [0xxxxxx][[data1]...]
+//
+// where the lower seven bits of the opcode is the number of data bytes
+// following the opcode. See also pack-format.txt in the Git source.
+func applyBinaryDeltaAdd(w io.Writer, op byte, delta []byte) (n int64, rest []byte, err error) {
+	size := int(op)
+	if len(delta) < size {
+		return 0, delta, errors.New("corrupt binary delta: incomplete add")
+	}
+	_, err = w.Write(delta[:size])
+	return int64(size), delta[size:], err
+}
+
+// applyBinaryDeltaCopy applies a copy opcode in a delta-encoded binary
+// fragment, returing the amount of data written and the unused part of the
+// fragment. A copy operation takes the form:
+//
+//     [1xxxxxxx][offset1][offset2][offset3][offset4][size1][size2][size3]
+//
+// where the lower seven bits of the opcode determine which non-zero offset and
+// size bytes are present in little-endian order: if bit 0 is set, offset1 is
+// present, etc. If no offset or size bytes are present, offset is 0 and size
+// is 0x10000. See also pack-format.txt in the Git source.
+func applyBinaryDeltaCopy(w io.Writer, op byte, delta, src []byte) (n int64, rest []byte, err error) {
+	unpack := func(start, bits uint) (v int64) {
+		for i := uint(0); i < bits; i++ {
+			mask := byte(1 << (i + start))
+			if op&mask > 0 {
+				if len(delta) == 0 {
+					err = errors.New("corrupt binary delta: incomplete copy")
+					return
+				}
+				v |= int64(delta[0]) << (8 * i)
+				delta = delta[1:]
+			}
+		}
+		return
+	}
+
+	offset := unpack(0, 4)
+	size := unpack(4, 3)
+	if err != nil {
+		return 0, delta, err
+	}
+	if size == 0 {
+		size = 0x10000
+	}
+
+	_, err = w.Write(src[offset : offset+size])
+	return size, delta, err
 }
