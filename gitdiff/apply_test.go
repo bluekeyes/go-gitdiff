@@ -11,78 +11,73 @@ import (
 
 func TestTextFragmentApplyStrict(t *testing.T) {
 	tests := map[string]struct {
-		File      string
-		SrcFile   string
-		PatchFile string
-		DstFile   string
-
-		Err error
+		Files applyFiles
+		Err   error
 	}{
-		"createFile": {File: "text_fragment_new"},
-		"deleteFile": {File: "text_fragment_delete_all"},
+		"createFile": {Files: getApplyFiles("text_fragment_new")},
+		"deleteFile": {Files: getApplyFiles("text_fragment_delete_all")},
 
-		"addStart":    {File: "text_fragment_add_start"},
-		"addMiddle":   {File: "text_fragment_add_middle"},
-		"addEnd":      {File: "text_fragment_add_end"},
-		"addEndNoEOL": {File: "text_fragment_add_end_noeol"},
+		"addStart":    {Files: getApplyFiles("text_fragment_add_start")},
+		"addMiddle":   {Files: getApplyFiles("text_fragment_add_middle")},
+		"addEnd":      {Files: getApplyFiles("text_fragment_add_end")},
+		"addEndNoEOL": {Files: getApplyFiles("text_fragment_add_end_noeol")},
 
-		"changeStart":       {File: "text_fragment_change_start"},
-		"changeMiddle":      {File: "text_fragment_change_middle"},
-		"changeEnd":         {File: "text_fragment_change_end"},
-		"changeExact":       {File: "text_fragment_change_exact"},
-		"changeSingleNoEOL": {File: "text_fragment_change_single_noeol"},
+		"changeStart":       {Files: getApplyFiles("text_fragment_change_start")},
+		"changeMiddle":      {Files: getApplyFiles("text_fragment_change_middle")},
+		"changeEnd":         {Files: getApplyFiles("text_fragment_change_end")},
+		"changeExact":       {Files: getApplyFiles("text_fragment_change_exact")},
+		"changeSingleNoEOL": {Files: getApplyFiles("text_fragment_change_single_noeol")},
 
 		"errorShortSrcBefore": {
-			SrcFile:   "text_fragment_error",
-			PatchFile: "text_fragment_error_short_src_before",
-			Err:       io.ErrUnexpectedEOF,
+			Files: applyFiles{
+				Src:   "text_fragment_error.src",
+				Patch: "text_fragment_error_short_src_before.patch",
+			},
+			Err: io.ErrUnexpectedEOF,
 		},
 		"errorShortSrc": {
-			SrcFile:   "text_fragment_error",
-			PatchFile: "text_fragment_error_short_src",
-			Err:       io.ErrUnexpectedEOF,
+			Files: applyFiles{
+				Src:   "text_fragment_error.src",
+				Patch: "text_fragment_error_short_src.patch",
+			},
+			Err: io.ErrUnexpectedEOF,
 		},
 		"errorContextConflict": {
-			SrcFile:   "text_fragment_error",
-			PatchFile: "text_fragment_error_context_conflict",
-			Err:       &Conflict{},
+			Files: applyFiles{
+				Src:   "text_fragment_error.src",
+				Patch: "text_fragment_error_context_conflict.patch",
+			},
+			Err: &Conflict{},
 		},
 		"errorDeleteConflict": {
-			SrcFile:   "text_fragment_error",
-			PatchFile: "text_fragment_error_delete_conflict",
-			Err:       &Conflict{},
+			Files: applyFiles{
+				Src:   "text_fragment_error.src",
+				Patch: "text_fragment_error_delete_conflict.patch",
+			},
+			Err: &Conflict{},
 		},
 		"errorNewFile": {
-			SrcFile:   "text_fragment_error",
-			PatchFile: "text_fragment_error_new_file",
-			Err:       &Conflict{},
+			Files: applyFiles{
+				Src:   "text_fragment_error.src",
+				Patch: "text_fragment_error_new_file.patch",
+			},
+			Err: &Conflict{},
 		},
-	}
-
-	loadFile := func(name, defaultName, ext string) []byte {
-		if name == "" {
-			name = defaultName
-		}
-		d, err := ioutil.ReadFile(filepath.Join("testdata", "apply", name+"."+ext))
-		if err != nil {
-			t.Fatalf("failed to read %s file: %v", ext, err)
-		}
-		return d
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			src := loadFile(test.SrcFile, test.File, "src")
-			patch := loadFile(test.PatchFile, test.File, "patch")
-
-			var result []byte
-			if test.Err == nil {
-				result = loadFile(test.DstFile, test.File, "dst")
-			}
+			src, patch, out := test.Files.Load(t)
 
 			files, _, err := Parse(bytes.NewReader(patch))
 			if err != nil {
 				t.Fatalf("failed to parse patch file: %v", err)
+			}
+			if len(files) != 1 {
+				t.Fatalf("patch should contain exactly one file, but it has %d", len(files))
+			}
+			if len(files[0].TextFragments) != 1 {
+				t.Fatalf("patch should contain exactly one fragment, but it has %d", len(files[0].TextFragments))
 			}
 
 			frag := files[0].TextFragments[0]
@@ -102,8 +97,8 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 				t.Fatalf("unexpected error applying fragment: %v", err)
 			}
 
-			if !bytes.Equal(result, dst.Bytes()) {
-				t.Errorf("incorrect result after apply\nexpected:\n%s\nactual:\n%s", result, dst.Bytes())
+			if !bytes.Equal(out, dst.Bytes()) {
+				t.Errorf("incorrect result after apply\nexpected:\n%s\nactual:\n%s", out, dst.Bytes())
 			}
 		})
 	}
@@ -111,45 +106,30 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 
 func TestBinaryFragmentApply(t *testing.T) {
 	tests := map[string]struct {
-		File      string
-		SrcFile   string
-		PatchFile string
-		DstFile   string
-
-		Err error
+		Files applyFiles
+		Err   error
 	}{
-		"literalCreate": {File: "bin_fragment_literal_create"},
-		"literalModify": {File: "bin_fragment_literal_modify"},
-		"deltaModify":   {File: "bin_fragment_delta_modify"},
-	}
-
-	loadFile := func(name, defaultName, ext string) []byte {
-		if name == "" {
-			name = defaultName
-		}
-		d, err := ioutil.ReadFile(filepath.Join("testdata", "apply", name+"."+ext))
-		if err != nil {
-			t.Fatalf("failed to read %s file: %v", ext, err)
-		}
-		return d
+		"literalCreate": {Files: getApplyFiles("bin_fragment_literal_create")},
+		"literalModify": {Files: getApplyFiles("bin_fragment_literal_modify")},
+		"deltaModify":   {Files: getApplyFiles("bin_fragment_delta_modify")},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			src := loadFile(test.SrcFile, test.File, "src")
-			patch := loadFile(test.PatchFile, test.File, "patch")
-
-			var result []byte
-			if test.Err == nil {
-				result = loadFile(test.DstFile, test.File, "dst")
-			}
+			src, patch, out := test.Files.Load(t)
 
 			files, _, err := Parse(bytes.NewReader(patch))
 			if err != nil {
 				t.Fatalf("failed to parse patch file: %v", err)
 			}
+			if len(files) != 1 {
+				t.Fatalf("patch should contain exactly one file, but it has %d", len(files))
+			}
 
 			frag := files[0].BinaryFragment
+			if frag == nil {
+				t.Fatalf("patch should contain a binary fragment, but it was nil")
+			}
 
 			var dst bytes.Buffer
 			err = frag.Apply(&dst, bytes.NewReader(src))
@@ -166,9 +146,44 @@ func TestBinaryFragmentApply(t *testing.T) {
 				t.Fatalf("unexpected error applying fragment: %v", err)
 			}
 
-			if !bytes.Equal(result, dst.Bytes()) {
-				t.Errorf("incorrect result after apply\nexpected:\n%x\nactual:\n%x", result, dst.Bytes())
+			if !bytes.Equal(out, dst.Bytes()) {
+				t.Errorf("incorrect result after apply\nexpected:\n%x\nactual:\n%x", out, dst.Bytes())
 			}
 		})
 	}
+}
+
+type applyFiles struct {
+	Src   string
+	Patch string
+	Out   string
+}
+
+func getApplyFiles(name string) applyFiles {
+	return applyFiles{
+		Src:   name + ".src",
+		Patch: name + ".patch",
+		Out:   name + ".out",
+	}
+}
+
+func (f applyFiles) Load(t *testing.T) (src []byte, patch []byte, out []byte) {
+	load := func(name, kind string) []byte {
+		d, err := ioutil.ReadFile(filepath.Join("testdata", "apply", name))
+		if err != nil {
+			t.Fatalf("failed to read %s file: %v", kind, err)
+		}
+		return d
+	}
+
+	if f.Src != "" {
+		src = load(f.Src, "source")
+	}
+	if f.Patch != "" {
+		patch = load(f.Patch, "patch")
+	}
+	if f.Out != "" {
+		out = load(f.Out, "output")
+	}
+	return
 }
