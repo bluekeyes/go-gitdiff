@@ -108,3 +108,67 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 		})
 	}
 }
+
+func TestBinaryFragmentApply(t *testing.T) {
+	tests := map[string]struct {
+		File      string
+		SrcFile   string
+		PatchFile string
+		DstFile   string
+
+		Err error
+	}{
+		"literalCreate": {File: "bin_fragment_literal_create"},
+		"literalModify": {File: "bin_fragment_literal_modify"},
+		"deltaModify":   {File: "bin_fragment_delta_modify"},
+	}
+
+	loadFile := func(name, defaultName, ext string) []byte {
+		if name == "" {
+			name = defaultName
+		}
+		d, err := ioutil.ReadFile(filepath.Join("testdata", "apply", name+"."+ext))
+		if err != nil {
+			t.Fatalf("failed to read %s file: %v", ext, err)
+		}
+		return d
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			src := loadFile(test.SrcFile, test.File, "src")
+			patch := loadFile(test.PatchFile, test.File, "patch")
+
+			var result []byte
+			if test.Err == nil {
+				result = loadFile(test.DstFile, test.File, "dst")
+			}
+
+			files, _, err := Parse(bytes.NewReader(patch))
+			if err != nil {
+				t.Fatalf("failed to parse patch file: %v", err)
+			}
+
+			frag := files[0].BinaryFragment
+
+			var dst bytes.Buffer
+			err = frag.Apply(&dst, bytes.NewReader(src))
+			if test.Err != nil {
+				if err == nil {
+					t.Fatalf("expected error applying fragment, but got nil")
+				}
+				if !errors.Is(err, test.Err) {
+					t.Fatalf("incorrect apply error: expected: %T (%v), actual: %T (%v)", test.Err, test.Err, err, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error applying fragment: %v", err)
+			}
+
+			if !bytes.Equal(result, dst.Bytes()) {
+				t.Errorf("incorrect result after apply\nexpected:\n%x\nactual:\n%x", result, dst.Bytes())
+			}
+		})
+	}
+}

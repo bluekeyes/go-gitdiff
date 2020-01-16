@@ -228,8 +228,11 @@ func (f *BinaryFragment) Apply(dst io.Writer, src io.Reader) error {
 		if err := applyBinaryDeltaFragment(dst, fullSrc, f.Data); err != nil {
 			return applyError(err)
 		}
+	default:
+		return applyError(fmt.Errorf("unsupported binary patch method: %v", f.Method))
 	}
-	return applyError(fmt.Errorf("unsupported binary patch method: %v", f.Method))
+
+	return nil
 }
 
 func applyBinaryDeltaFragment(dst io.Writer, src, frag []byte) error {
