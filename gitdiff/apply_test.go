@@ -109,9 +109,10 @@ func TestBinaryFragmentApply(t *testing.T) {
 		Files applyFiles
 		Err   error
 	}{
-		"literalCreate": {Files: getApplyFiles("bin_fragment_literal_create")},
-		"literalModify": {Files: getApplyFiles("bin_fragment_literal_modify")},
-		"deltaModify":   {Files: getApplyFiles("bin_fragment_delta_modify")},
+		"literalCreate":    {Files: getApplyFiles("bin_fragment_literal_create")},
+		"literalModify":    {Files: getApplyFiles("bin_fragment_literal_modify")},
+		"deltaModify":      {Files: getApplyFiles("bin_fragment_delta_modify")},
+		"deltaModifyLarge": {Files: getApplyFiles("bin_fragment_delta_modify_large")},
 	}
 
 	for name, test := range tests {

@@ -315,6 +315,8 @@ func applyBinaryDeltaAdd(w io.Writer, op byte, delta []byte) (n int64, rest []by
 // present, etc. If no offset or size bytes are present, offset is 0 and size
 // is 0x10000. See also pack-format.txt in the Git source.
 func applyBinaryDeltaCopy(w io.Writer, op byte, delta, src []byte) (n int64, rest []byte, err error) {
+	const defaultSize = 0x10000
+
 	unpack := func(start, bits uint) (v int64) {
 		for i := uint(0); i < bits; i++ {
 			mask := byte(1 << (i + start))
@@ -336,7 +338,7 @@ func applyBinaryDeltaCopy(w io.Writer, op byte, delta, src []byte) (n int64, res
 		return 0, delta, err
 	}
 	if size == 0 {
-		size = 0x10000
+		size = defaultSize
 	}
 
 	_, err = w.Write(src[offset : offset+size])
