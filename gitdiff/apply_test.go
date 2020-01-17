@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -85,12 +86,7 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 			var dst bytes.Buffer
 			err = frag.ApplyStrict(&dst, NewLineReader(bytes.NewReader(src), 0))
 			if test.Err != nil {
-				if err == nil {
-					t.Fatalf("expected error applying fragment, but got nil")
-				}
-				if !errors.Is(err, test.Err) {
-					t.Fatalf("incorrect apply error: expected: %T (%v), actual: %T (%v)", test.Err, test.Err, err, err)
-				}
+				checkApplyError(t, test.Err, err)
 				return
 			}
 			if err != nil {
@@ -107,12 +103,41 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 func TestBinaryFragmentApply(t *testing.T) {
 	tests := map[string]struct {
 		Files applyFiles
-		Err   error
+		Err   interface{}
 	}{
 		"literalCreate":    {Files: getApplyFiles("bin_fragment_literal_create")},
 		"literalModify":    {Files: getApplyFiles("bin_fragment_literal_modify")},
 		"deltaModify":      {Files: getApplyFiles("bin_fragment_delta_modify")},
 		"deltaModifyLarge": {Files: getApplyFiles("bin_fragment_delta_modify_large")},
+
+		"errorIncompleteAdd": {
+			Files: applyFiles{
+				Src:   "bin_fragment_delta_error.src",
+				Patch: "bin_fragment_delta_error_incomplete_add.patch",
+			},
+			Err: "incomplete add",
+		},
+		"errorIncompleteCopy": {
+			Files: applyFiles{
+				Src:   "bin_fragment_delta_error.src",
+				Patch: "bin_fragment_delta_error_incomplete_copy.patch",
+			},
+			Err: "incomplete copy",
+		},
+		"errorSrcSize": {
+			Files: applyFiles{
+				Src:   "bin_fragment_delta_error.src",
+				Patch: "bin_fragment_delta_error_src_size.patch",
+			},
+			Err: &Conflict{},
+		},
+		"errorDstSize": {
+			Files: applyFiles{
+				Src:   "bin_fragment_delta_error.src",
+				Patch: "bin_fragment_delta_error_dst_size.patch",
+			},
+			Err: "insufficient or extra data",
+		},
 	}
 
 	for name, test := range tests {
@@ -135,12 +160,7 @@ func TestBinaryFragmentApply(t *testing.T) {
 			var dst bytes.Buffer
 			err = frag.Apply(&dst, bytes.NewReader(src))
 			if test.Err != nil {
-				if err == nil {
-					t.Fatalf("expected error applying fragment, but got nil")
-				}
-				if !errors.Is(err, test.Err) {
-					t.Fatalf("incorrect apply error: expected: %T (%v), actual: %T (%v)", test.Err, test.Err, err, err)
-				}
+				checkApplyError(t, test.Err, err)
 				return
 			}
 			if err != nil {
@@ -151,6 +171,25 @@ func TestBinaryFragmentApply(t *testing.T) {
 				t.Errorf("incorrect result after apply\nexpected:\n%x\nactual:\n%x", out, dst.Bytes())
 			}
 		})
+	}
+}
+
+func checkApplyError(t *testing.T, terr interface{}, err error) {
+	if err == nil {
+		t.Fatalf("expected error applying fragment, but got nil")
+	}
+
+	switch terr := terr.(type) {
+	case string:
+		if !strings.Contains(err.Error(), terr) {
+			t.Fatalf("incorrect apply error: %q does not contain %q", err.Error(), terr)
+		}
+	case error:
+		if !errors.Is(err, terr) {
+			t.Fatalf("incorrect apply error: expected: %T (%v), actual: %T (%v)", terr, terr, err, err)
+		}
+	default:
+		t.Fatalf("unsupported error type: %T", terr)
 	}
 }
 
