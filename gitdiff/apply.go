@@ -1,6 +1,7 @@
 package gitdiff
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -69,10 +70,7 @@ func applyError(err error, args ...interface{}) error {
 
 	e, ok := err.(*ApplyError)
 	if !ok {
-		if err == io.EOF {
-			err = io.ErrUnexpectedEOF
-		}
-		e = &ApplyError{err: err}
+		e = &ApplyError{err: wrapEOF(err)}
 	}
 	for _, arg := range args {
 		switch v := arg.(type) {
@@ -95,10 +93,14 @@ func applyError(err error, args ...interface{}) error {
 // Partial data may be written to dst in this case.
 func (f *File) ApplyStrict(dst io.Writer, src io.Reader) error {
 	if f.IsBinary {
-		if f.BinaryFragment != nil {
-			return f.BinaryFragment.Apply(dst, src)
+		data, err := ioutil.ReadAll(src)
+		if err != nil {
+			return applyError(err)
 		}
-		_, err := io.Copy(dst, src)
+		if f.BinaryFragment != nil {
+			return f.BinaryFragment.Apply(dst, bytes.NewReader(data))
+		}
+		_, err = dst.Write(data)
 		return applyError(err)
 	}
 
@@ -196,10 +198,7 @@ func copyLines(dst io.Writer, src LineReader, limit int64) (string, int64, error
 			}
 			return "", n, &Conflict{"fragment overlaps with an applied fragment"}
 		case err != nil:
-			if err == io.EOF {
-				err = io.ErrUnexpectedEOF
-			}
-			return line, n, err
+			return line, n, wrapEOF(err)
 		}
 
 		if _, err := io.WriteString(dst, line); err != nil {
@@ -213,19 +212,14 @@ func copyLines(dst io.Writer, src LineReader, limit int64) (string, int64, error
 //
 // Unlike text fragments, binary fragments do not distinguish between strict
 // and non-strict application.
-func (f *BinaryFragment) Apply(dst io.Writer, src io.Reader) error {
-	fullSrc, err := ioutil.ReadAll(src)
-	if err != nil {
-		return err
-	}
-
+func (f *BinaryFragment) Apply(dst io.Writer, src io.ReaderAt) error {
 	switch f.Method {
 	case BinaryPatchLiteral:
 		if _, err := dst.Write(f.Data); err != nil {
 			return applyError(err)
 		}
 	case BinaryPatchDelta:
-		if err := applyBinaryDeltaFragment(dst, fullSrc, f.Data); err != nil {
+		if err := applyBinaryDeltaFragment(dst, src, f.Data); err != nil {
 			return applyError(err)
 		}
 	default:
@@ -235,10 +229,10 @@ func (f *BinaryFragment) Apply(dst io.Writer, src io.Reader) error {
 	return nil
 }
 
-func applyBinaryDeltaFragment(dst io.Writer, src, frag []byte) error {
+func applyBinaryDeltaFragment(dst io.Writer, src io.ReaderAt, frag []byte) error {
 	srcSize, delta := readBinaryDeltaSize(frag)
-	if srcSize != int64(len(src)) {
-		return &Conflict{"fragment src size does not match actual src size"}
+	if err := checkBinarySrcSize(srcSize, src); err != nil {
+		return err
 	}
 
 	dstSize, delta := readBinaryDeltaSize(delta)
@@ -314,7 +308,7 @@ func applyBinaryDeltaAdd(w io.Writer, op byte, delta []byte) (n int64, rest []by
 // size bytes are present in little-endian order: if bit 0 is set, offset1 is
 // present, etc. If no offset or size bytes are present, offset is 0 and size
 // is 0x10000. See also pack-format.txt in the Git source.
-func applyBinaryDeltaCopy(w io.Writer, op byte, delta, src []byte) (n int64, rest []byte, err error) {
+func applyBinaryDeltaCopy(w io.Writer, op byte, delta []byte, src io.ReaderAt) (n int64, rest []byte, err error) {
 	const defaultSize = 0x10000
 
 	unpack := func(start, bits uint) (v int64) {
@@ -341,6 +335,35 @@ func applyBinaryDeltaCopy(w io.Writer, op byte, delta, src []byte) (n int64, res
 		size = defaultSize
 	}
 
-	_, err = w.Write(src[offset : offset+size])
+	// TODO(bkeyes): consider pooling these buffers
+	b := make([]byte, size)
+	if _, err := src.ReadAt(b, offset); err != nil {
+		return 0, delta, wrapEOF(err)
+	}
+
+	_, err = w.Write(b)
 	return size, delta, err
+}
+
+func checkBinarySrcSize(size int64, src io.ReaderAt) error {
+	start := size
+	if start > 0 {
+		start--
+	}
+	var b [2]byte
+	n, err := src.ReadAt(b[:], start)
+	if err == io.EOF && (size == 0 && n == 0) || (size > 0 && n == 1) {
+		return nil
+	}
+	if err != nil && err != io.EOF {
+		return err
+	}
+	return &Conflict{"fragment src size does not match actual src size"}
+}
+
+func wrapEOF(err error) error {
+	if err == io.EOF {
+		err = io.ErrUnexpectedEOF
+	}
+	return err
 }
