@@ -39,7 +39,7 @@ func (c *Conflict) Is(other error) bool {
 // additional location information, if it is available.
 type ApplyError struct {
 	// Line is the one-indexed line number in the source data
-	Line int
+	Line int64
 	// Fragment is the one-indexed fragment number in the file
 	Fragment int
 	// FragmentLine is the one-indexed line number in the fragment
@@ -75,7 +75,7 @@ func applyError(err error, args ...interface{}) error {
 	for _, arg := range args {
 		switch v := arg.(type) {
 		case lineNum:
-			e.Line = int(v) + 1
+			e.Line = int64(v) + 1
 		case fragNum:
 			e.Fragment = int(v) + 1
 		case fragLineNum:
@@ -92,11 +92,13 @@ func applyError(err error, args ...interface{}) error {
 // If the apply fails, ApplyStrict returns an *ApplyError wrapping the cause.
 // Partial data may be written to dst in this case.
 func (f *File) ApplyStrict(dst io.Writer, src io.Reader) error {
+	// TODO(bkeyes): take an io.ReaderAt and avoid this!
+	data, err := ioutil.ReadAll(src)
+	if err != nil {
+		return applyError(err)
+	}
+
 	if f.IsBinary {
-		data, err := ioutil.ReadAll(src)
-		if err != nil {
-			return applyError(err)
-		}
 		if f.BinaryFragment != nil {
 			return f.BinaryFragment.Apply(dst, bytes.NewReader(data))
 		}
@@ -104,107 +106,102 @@ func (f *File) ApplyStrict(dst io.Writer, src io.Reader) error {
 		return applyError(err)
 	}
 
-	lr, ok := src.(LineReader)
-	if !ok {
-		lr = NewLineReader(src, 0)
-	}
+	// TODO(bkeyes): check for this conflict case
+	// &Conflict{"cannot create new file from non-empty src"}
 
+	lra := NewLineReaderAt(bytes.NewReader(data))
+
+	var next int64
 	for i, frag := range f.TextFragments {
-		if err := frag.ApplyStrict(dst, lr); err != nil {
+		next, err = frag.ApplyStrict(dst, lra, next)
+		if err != nil {
 			return applyError(err, fragNum(i))
 		}
 	}
 
-	_, err := io.Copy(dst, unwrapLineReader(lr))
-	return applyError(err)
+	// TODO(bkeyes): extract this to a utility
+	buf := make([][]byte, 64)
+	for {
+		n, err := lra.ReadLinesAt(buf, next)
+		if err != nil && err != io.EOF {
+			return applyError(err, lineNum(next+int64(n)))
+		}
+
+		for i := 0; i < n; i++ {
+			if _, err := dst.Write(buf[n]); err != nil {
+				return applyError(err, lineNum(next+int64(n)))
+			}
+		}
+
+		next += int64(n)
+		if n < len(buf) {
+			return nil
+		}
+	}
 }
 
-// ApplyStrict writes data from src to dst, modifying it as described by the
-// fragment. The fragment, including all context lines, must exactly match src
-// at the expected line number.
-//
-// If the apply fails, ApplyStrict returns an *ApplyError wrapping the cause.
-// Partial data may be written to dst in this case. If there is no error, the
-// next read from src returns the line immediately after the last line of the
-// fragment.
-func (f *TextFragment) ApplyStrict(dst io.Writer, src LineReader) error {
+// ApplyStrict copies from src to dst, from line start through then end of the
+// fragment, modifying the data as described by the fragment.  The fragment,
+// including all context lines, must exactly match src at the expected line
+// number. ApplyStrict returns the number of the next unprocessed line in src
+// and any error. When the error is not non-nil, partial data may be written.
+func (f *TextFragment) ApplyStrict(dst io.Writer, src LineReaderAt, start int64) (next int64, err error) {
 	// application code assumes fragment fields are consistent
 	if err := f.Validate(); err != nil {
-		return applyError(err)
+		return start, applyError(err)
 	}
 
-	// line numbers are zero-indexed, positions are one-indexed
-	limit := f.OldPosition - 1
+	// lines are 0-indexed, positions are 1-indexed (but new files have position = 0)
+	fragStart := f.OldPosition - 1
+	if fragStart < 0 {
+		fragStart = 0
+	}
+	fragEnd := fragStart + f.OldLines
 
-	// io.EOF is acceptable here: the first line of the patch is the last of
-	// the source and it has no newline character
-	nextLine, n, err := copyLines(dst, src, limit)
-	if err != nil && err != io.EOF {
-		return applyError(err, lineNum(n))
+	if fragStart < start {
+		return start, applyError(&Conflict{"fragment overlaps with an applied fragment"})
 	}
 
+	preimage := make([][]byte, fragEnd-start)
+	n, err := src.ReadLinesAt(preimage, start)
+	switch {
+	case err == nil:
+	case err == io.EOF && n == len(preimage): // last line of frag has no newline character
+	default:
+		return start, applyError(err, lineNum(start+int64(n)))
+	}
+
+	// copy leading data before the fragment starts
+	for i, line := range preimage[:fragStart-start] {
+		if _, err := dst.Write(line); err != nil {
+			next = start + int64(i)
+			return next, applyError(err, lineNum(next))
+		}
+	}
+	preimage = preimage[fragStart-start:]
+
+	// apply the changes in the fragment
 	used := int64(0)
 	for i, line := range f.Lines {
-		if err := applyTextLine(dst, nextLine, line); err != nil {
-			return applyError(err, lineNum(n), fragLineNum(i))
+		if err := applyTextLine(dst, line, preimage, used); err != nil {
+			next = fragStart + used
+			return next, applyError(err, lineNum(next), fragLineNum(i))
 		}
 		if line.Old() {
 			used++
 		}
-		// advance reader if the next fragment line appears in src and we're behind
-		if i < len(f.Lines)-1 && f.Lines[i+1].Old() && int64(n)-limit < used {
-			nextLine, n, err = src.ReadLine()
-			switch {
-			case err == io.EOF && f.Lines[i+1].NoEOL():
-				continue
-			case err != nil:
-				return applyError(err, lineNum(n), fragLineNum(i+1)) // report for _next_ line in fragment
-			}
-		}
 	}
-
-	return nil
+	return fragStart + used, nil
 }
 
-func applyTextLine(dst io.Writer, src string, line Line) (err error) {
-	switch line.Op {
-	case OpContext, OpDelete:
-		if src != line.Line {
-			return &Conflict{"fragment line does not match src line"}
-		}
+func applyTextLine(dst io.Writer, line Line, preimage [][]byte, i int64) (err error) {
+	if line.Old() && string(preimage[i]) != line.Line {
+		return &Conflict{"fragment line does not match src line"}
 	}
-	switch line.Op {
-	case OpContext, OpAdd:
+	if line.New() {
 		_, err = io.WriteString(dst, line.Line)
 	}
 	return
-}
-
-// copyLines copies from src to dst until the line at limit, exclusive. Returns
-// the line at limit and the line number. If the error is nil or io.EOF, the
-// line number equals limit. A negative limit checks that the source has no
-// more lines to read.
-func copyLines(dst io.Writer, src LineReader, limit int64) (string, int64, error) {
-	for {
-		line, n, err := src.ReadLine()
-		switch {
-		case limit < 0 && err == io.EOF && line == "":
-			return "", limit, nil
-		case n == limit:
-			return line, n, err
-		case n > limit:
-			if limit < 0 {
-				return "", n, &Conflict{"cannot create new file from non-empty src"}
-			}
-			return "", n, &Conflict{"fragment overlaps with an applied fragment"}
-		case err != nil:
-			return line, n, wrapEOF(err)
-		}
-
-		if _, err := io.WriteString(dst, line); err != nil {
-			return "", n, err
-		}
-	}
 }
 
 // Apply writes data from src to dst, modifying it as described by the

@@ -128,12 +128,7 @@ func (r *lineReaderAt) ReadLinesAt(lines [][]byte, offset int64) (n int, err err
 		return 0, io.EOF
 	}
 
-	// TODO(bkeyes): check usage of int / int64
-	// - interface uses int64 for arbitrarily large files
-	// - implementation is limited to int lines by index array
-
-	// offset <= len(r.index) means that it must fit in int without loss
-	size, readOffset := lookupLines(r.index, int(offset), len(lines))
+	size, readOffset := lookupLines(r.index, offset, int64(len(lines)))
 
 	b := make([]byte, size)
 	if _, err := r.r.ReadAt(b, readOffset); err != nil {
@@ -144,7 +139,7 @@ func (r *lineReaderAt) ReadLinesAt(lines [][]byte, offset int64) (n int, err err
 	}
 
 	for n = 0; n < len(lines) && offset+int64(n) < int64(len(r.index)); n++ {
-		i := int(offset) + n
+		i := offset + int64(n)
 		start, end := readOffset, r.index[i]
 		if i > 0 {
 			start = r.index[i-1]
@@ -193,15 +188,14 @@ func (r *lineReaderAt) indexTo(line int64) error {
 
 // lookupLines gets the byte offset and size of a range of lines from an index
 // where the value at n is the offset of the first byte after line number n.
-func lookupLines(index []int64, start, n int) (size int64, offset int64) {
-	if start > len(index) {
+func lookupLines(index []int64, start, n int64) (size int64, offset int64) {
+	if start > int64(len(index)) {
 		offset = index[len(index)-1]
 	} else if start > 0 {
 		offset = index[start-1]
 	}
 	if n > 0 {
-		// TODO(bkeyes): check types for overflow
-		if start+n > len(index) {
+		if start+n > int64(len(index)) {
 			size = index[len(index)-1] - offset
 		} else {
 			size = index[start+n-1] - offset

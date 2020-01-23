@@ -139,12 +139,12 @@ func (fl Line) String() string {
 
 // Old returns true if the line appears in the old content of the fragment.
 func (fl Line) Old() bool {
-	return fl.Op != OpAdd
+	return fl.Op == OpContext || fl.Op == OpDelete
 }
 
 // New returns true if the line appears in the new content of the fragment.
 func (fl Line) New() bool {
-	return fl.Op == OpAdd
+	return fl.Op == OpContext || fl.Op == OpAdd
 }
 
 // NoEOL returns true if the line is missing a trailing newline character.
