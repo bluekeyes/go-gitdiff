@@ -57,14 +57,13 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 			},
 			Err: &Conflict{},
 		},
-		// TODO(bkeyes): this check has moved to the file level (probably)
-		// "errorNewFile": {
-		// 	Files: applyFiles{
-		// 		Src:   "text_fragment_error.src",
-		// 		Patch: "text_fragment_error_new_file.patch",
-		// 	},
-		// 	Err: &Conflict{},
-		// },
+		"errorNewFile": {
+			Files: applyFiles{
+				Src:   "text_fragment_error.src",
+				Patch: "text_fragment_error_new_file.patch",
+			},
+			Err: &Conflict{},
+		},
 	}
 
 	for name, test := range tests {
@@ -82,10 +81,10 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 				t.Fatalf("patch should contain exactly one fragment, but it has %d", len(files[0].TextFragments))
 			}
 
-			frag := files[0].TextFragments[0]
+			applier := NewApplier(bytes.NewReader(src))
 
 			var dst bytes.Buffer
-			_, err = frag.ApplyStrict(&dst, NewLineReaderAt(bytes.NewReader(src)), 0)
+			err = applier.ApplyTextFragment(&dst, files[0].TextFragments[0])
 			if test.Err != nil {
 				checkApplyError(t, test.Err, err)
 				return
@@ -153,13 +152,10 @@ func TestBinaryFragmentApply(t *testing.T) {
 				t.Fatalf("patch should contain exactly one file, but it has %d", len(files))
 			}
 
-			frag := files[0].BinaryFragment
-			if frag == nil {
-				t.Fatalf("patch should contain a binary fragment, but it was nil")
-			}
+			applier := NewApplier(bytes.NewReader(src))
 
 			var dst bytes.Buffer
-			err = frag.Apply(&dst, bytes.NewReader(src))
+			err = applier.ApplyBinaryFragment(&dst, files[0].BinaryFragment)
 			if test.Err != nil {
 				checkApplyError(t, test.Err, err)
 				return

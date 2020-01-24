@@ -24,11 +24,6 @@ type LineReaderAt interface {
 	ReadLinesAt(lines [][]byte, offset int64) (n int, err error)
 }
 
-// NewLineReaderAt creates a LineReaderAt from an io.ReaderAt.
-func NewLineReaderAt(r io.ReaderAt) LineReaderAt {
-	return &lineReaderAt{r: r}
-}
-
 type lineReaderAt struct {
 	r     io.ReaderAt
 	index []int64
@@ -128,4 +123,83 @@ func lookupLines(index []int64, start, n int64) (size int64, offset int64) {
 		}
 	}
 	return
+}
+
+func isLen(r io.ReaderAt, n int64) (bool, error) {
+	off := n - 1
+	if off < 0 {
+		off = 0
+	}
+
+	var b [2]byte
+	nr, err := r.ReadAt(b[:], off)
+	if err == io.EOF {
+		return (n == 0 && nr == 0) || (n > 0 && nr == 1), nil
+	}
+	return false, err
+}
+
+// copyFrom writes bytes starting from offset off in src to dst stopping at the
+// end of src or at the first error. copyFrom returns the number of bytes
+// written and any error.
+func copyFrom(dst io.Writer, src io.ReaderAt, off int64) (written int64, err error) {
+	buf := make([]byte, 32*1024) // stolen from io.Copy
+	for {
+		nr, rerr := src.ReadAt(buf, off)
+		if nr > 0 {
+			nw, werr := dst.Write(buf[0:nr])
+			if nw > 0 {
+				written += int64(nw)
+			}
+			if werr != nil {
+				err = werr
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if rerr != nil {
+			if rerr != io.EOF {
+				err = rerr
+			}
+			break
+		}
+	}
+	return written, err
+}
+
+// copyLinesFrom writes lines starting from line off in src to dst stopping at
+// the end of src or at the first error. copyLinesFrom returns the number of
+// lines written and any error.
+func copyLinesFrom(dst io.Writer, src LineReaderAt, off int64) (written int64, err error) {
+	buf := make([][]byte, 32)
+ReadLoop:
+	for {
+		nr, rerr := src.ReadLinesAt(buf, off)
+		if nr > 0 {
+			for _, line := range buf[0:nr] {
+				nw, werr := dst.Write(line)
+				if nw > 0 {
+					written++
+				}
+				if werr != nil {
+					err = werr
+					break ReadLoop
+				}
+				if len(line) != nw {
+					err = io.ErrShortWrite
+					break ReadLoop
+				}
+			}
+		}
+		if rerr != nil {
+			if rerr != io.EOF {
+				err = rerr
+			}
+			break
+		}
+	}
+	return written, err
 }

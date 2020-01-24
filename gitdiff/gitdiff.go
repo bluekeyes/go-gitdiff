@@ -1,6 +1,7 @@
 package gitdiff
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
@@ -64,6 +65,10 @@ func (f *TextFragment) Header() string {
 // Validate checks that the fragment is self-consistent and appliable. Validate
 // returns an error if and only if the fragment is invalid.
 func (f *TextFragment) Validate() error {
+	if f == nil {
+		return errors.New("nil fragment")
+	}
+
 	var (
 		oldLines, newLines                     int64
 		leadingContext, trailingContext        int64
@@ -117,7 +122,7 @@ func (f *TextFragment) Validate() error {
 
 	// if a file is being created, it can only contain additions
 	if f.OldPosition == 0 && f.OldLines != 0 {
-		return fmt.Errorf("file creation fragment contains context or deletion lines")
+		return errors.New("file creation fragment contains context or deletion lines")
 	}
 
 	return nil
