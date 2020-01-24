@@ -4,6 +4,7 @@
 package gitdiff
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 )
@@ -11,9 +12,6 @@ import (
 // Parse parses a patch with changes to one or more files. Any content before
 // the first file is returned as the second value. If an error occurs while
 // parsing, it returns all files parsed before the error.
-//
-// If r is a LineReader or StringReader, it is used directly. Otherwise, it is
-// wrapped in a way that may read extra data from the underlying input.
 func Parse(r io.Reader) ([]*File, string, error) {
 	p := newParser(r)
 
@@ -69,8 +67,12 @@ func Parse(r io.Reader) ([]*File, string, error) {
 //     - if returning an object, advance to the first line after the object
 // - any exported parsing methods must initialize the parser by calling Next()
 
+type stringReader interface {
+	ReadString(delim byte) (string, error)
+}
+
 type parser struct {
-	r LineReader
+	r stringReader
 
 	eof    bool
 	lineno int64
@@ -78,10 +80,10 @@ type parser struct {
 }
 
 func newParser(r io.Reader) *parser {
-	if lr, ok := r.(LineReader); ok {
-		return &parser{r: lr}
+	if r, ok := r.(stringReader); ok {
+		return &parser{r: r}
 	}
-	return &parser{r: NewLineReader(r, 0)}
+	return &parser{r: bufio.NewReader(r)}
 }
 
 // Next advances the parser by one line. It returns any error encountered while
@@ -117,7 +119,7 @@ func (p *parser) shiftLines() (err error) {
 	for i := 0; i < len(p.lines)-1; i++ {
 		p.lines[i] = p.lines[i+1]
 	}
-	p.lines[len(p.lines)-1], _, err = p.r.ReadLine()
+	p.lines[len(p.lines)-1], err = p.r.ReadString('\n')
 	return
 }
 
