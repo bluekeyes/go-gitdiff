@@ -35,6 +35,9 @@ func (r *lineReaderAt) ReadLinesAt(lines [][]byte, offset int64) (n int, err err
 	//  - it's generally not clear when something is bytes vs lines
 	//  - offset is a good example of this
 
+	if offset < 0 {
+		return 0, errors.New("ReadLinesAt: negative offset")
+	}
 	if len(lines) == 0 {
 		return 0, nil
 	}
