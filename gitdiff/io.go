@@ -31,10 +31,6 @@ type lineReaderAt struct {
 }
 
 func (r *lineReaderAt) ReadLinesAt(lines [][]byte, offset int64) (n int, err error) {
-	// TODO(bkeyes): revisit variable names
-	//  - it's generally not clear when something is bytes vs lines
-	//  - offset is a good example of this
-
 	if offset < 0 {
 		return 0, errors.New("ReadLinesAt: negative offset")
 	}
@@ -42,36 +38,34 @@ func (r *lineReaderAt) ReadLinesAt(lines [][]byte, offset int64) (n int, err err
 		return 0, nil
 	}
 
-	endLine := offset + int64(len(lines))
+	count := len(lines)
+	startLine := offset
+	endLine := startLine + int64(count)
+
 	if endLine > int64(len(r.index)) && !r.eof {
 		if err := r.indexTo(endLine); err != nil {
 			return 0, err
 		}
 	}
-	if offset > int64(len(r.index)) {
+	if startLine > int64(len(r.index)) {
 		return 0, io.EOF
 	}
 
-	size, readOffset := lookupLines(r.index, offset, int64(len(lines)))
-
-	b := make([]byte, size)
-	if _, err := r.r.ReadAt(b, readOffset); err != nil {
-		if err == io.EOF {
-			err = errors.New("ReadLinesAt: corrupt line index or changed source data")
-		}
+	buf, byteOffset, err := r.readBytes(startLine, int64(count))
+	if err != nil {
 		return 0, err
 	}
 
-	for n = 0; n < len(lines) && offset+int64(n) < int64(len(r.index)); n++ {
-		i := offset + int64(n)
-		start, end := readOffset, r.index[i]
-		if i > 0 {
-			start = r.index[i-1]
+	for n = 0; n < count && startLine+int64(n) < int64(len(r.index)); n++ {
+		lineno := startLine + int64(n)
+		start, end := int64(0), r.index[lineno]-byteOffset
+		if lineno > 0 {
+			start = r.index[lineno-1] - byteOffset
 		}
-		lines[n] = b[start-readOffset : end-readOffset]
+		lines[n] = buf[start:end]
 	}
 
-	if n < len(lines) || b[size-1] != '\n' {
+	if n < count || buf[len(buf)-1] != '\n' {
 		return n, io.EOF
 	}
 	return n, nil
@@ -110,22 +104,33 @@ func (r *lineReaderAt) indexTo(line int64) error {
 	return nil
 }
 
-// lookupLines gets the byte offset and size of a range of lines from an index
-// where the value at n is the offset of the first byte after line number n.
-func lookupLines(index []int64, start, n int64) (size int64, offset int64) {
-	if start > int64(len(index)) {
-		offset = index[len(index)-1]
-	} else if start > 0 {
-		offset = index[start-1]
+// readBytes reads the bytes of the n lines starting at line and returns the
+// bytes and the offset of the first byte in the underlying source.
+func (r *lineReaderAt) readBytes(line, n int64) (b []byte, offset int64, err error) {
+	indexLen := int64(len(r.index))
+
+	var size int64
+	if line > indexLen {
+		offset = r.index[indexLen-1]
+	} else if line > 0 {
+		offset = r.index[line-1]
 	}
 	if n > 0 {
-		if start+n > int64(len(index)) {
-			size = index[len(index)-1] - offset
+		if line+n > indexLen {
+			size = r.index[indexLen-1] - offset
 		} else {
-			size = index[start+n-1] - offset
+			size = r.index[line+n-1] - offset
 		}
 	}
-	return
+
+	b = make([]byte, size)
+	if _, err := r.r.ReadAt(b, offset); err != nil {
+		if err == io.EOF {
+			err = errors.New("ReadLinesAt: corrupt line index or changed source data")
+		}
+		return nil, 0, err
+	}
+	return b, offset, nil
 }
 
 func isLen(r io.ReaderAt, n int64) (bool, error) {
