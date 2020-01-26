@@ -10,6 +10,69 @@ import (
 	"testing"
 )
 
+func TestApplierInvariants(t *testing.T) {
+	binary := &BinaryFragment{
+		Method: BinaryPatchLiteral,
+		Size:   2,
+		Data:   []byte("\xbe\xef"),
+	}
+
+	text := &TextFragment{
+		NewPosition: 1,
+		NewLines:    1,
+		LinesAdded:  1,
+		Lines: []Line{
+			{Op: OpAdd, Line: "new line\n"},
+		},
+	}
+
+	file := &File{
+		TextFragments: []*TextFragment{text},
+	}
+
+	src := bytes.NewReader(nil)
+	dst := ioutil.Discard
+
+	assertInProgress := func(t *testing.T, kind string, err error) {
+		if !errors.Is(err, errApplyInProgress) {
+			t.Fatalf("expected in-progress error for %s apply, but got: %v", kind, err)
+		}
+	}
+
+	t.Run("binaryFirst", func(t *testing.T) {
+		a := NewApplier(src)
+		if err := a.ApplyBinaryFragment(dst, binary); err != nil {
+			t.Fatalf("unexpected error applying fragment: %v", err)
+		}
+		assertInProgress(t, "text", a.ApplyTextFragment(dst, text))
+		assertInProgress(t, "binary", a.ApplyBinaryFragment(dst, binary))
+		assertInProgress(t, "file", a.ApplyFile(dst, file))
+	})
+
+	t.Run("textFirst", func(t *testing.T) {
+		a := NewApplier(src)
+		if err := a.ApplyTextFragment(dst, text); err != nil {
+			t.Fatalf("unexpected error applying fragment: %v", err)
+		}
+		// additional text fragments are allowed
+		if err := a.ApplyTextFragment(dst, text); err != nil {
+			t.Fatalf("unexpected error applying second fragment: %v", err)
+		}
+		assertInProgress(t, "binary", a.ApplyBinaryFragment(dst, binary))
+		assertInProgress(t, "file", a.ApplyFile(dst, file))
+	})
+
+	t.Run("fileFirst", func(t *testing.T) {
+		a := NewApplier(src)
+		if err := a.ApplyFile(dst, file); err != nil {
+			t.Fatalf("unexpected error applying file: %v", err)
+		}
+		assertInProgress(t, "text", a.ApplyTextFragment(dst, text))
+		assertInProgress(t, "binary", a.ApplyBinaryFragment(dst, binary))
+		assertInProgress(t, "file", a.ApplyFile(dst, file))
+	})
+}
+
 func TestTextFragmentApplyStrict(t *testing.T) {
 	tests := map[string]struct {
 		Files applyFiles

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 )
 
 // Conflict indicates an apply failed due to a conflict between the patch and
@@ -68,7 +69,10 @@ func applyError(err error, args ...interface{}) error {
 
 	e, ok := err.(*ApplyError)
 	if !ok {
-		e = &ApplyError{err: wrapEOF(err)}
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+		e = &ApplyError{err: err}
 	}
 	for _, arg := range args {
 		switch v := arg.(type) {
@@ -91,6 +95,7 @@ const (
 	applyInitial = iota
 	applyText
 	applyBinary
+	applyFile
 )
 
 // Applier applies changes described in fragments to source data. If changes
@@ -145,17 +150,35 @@ func (a *Applier) ApplyFile(dst io.Writer, f *File) error {
 	if a.applyType != applyInitial {
 		return applyError(errApplyInProgress)
 	}
+	defer func() { a.applyType = applyFile }()
 
-	if f.IsBinary && f.BinaryFragment != nil {
-		return a.ApplyBinaryFragment(dst, f.BinaryFragment)
+	if f.IsBinary && len(f.TextFragments) > 0 {
+		return applyError(errors.New("binary file contains text fragments"))
+	}
+	if !f.IsBinary && f.BinaryFragment != nil {
+		return applyError(errors.New("text file contains binary fragment"))
 	}
 
-	// TODO(bkeyes): sort fragments by start position
-	// TODO(bkeyes): merge overlapping fragments
+	switch {
+	case f.BinaryFragment != nil:
+		return a.ApplyBinaryFragment(dst, f.BinaryFragment)
 
-	for i, frag := range f.TextFragments {
-		if err := a.ApplyTextFragment(dst, frag); err != nil {
-			return applyError(err, fragNum(i))
+	case len(f.TextFragments) > 0:
+		frags := make([]*TextFragment, len(f.TextFragments))
+		copy(frags, f.TextFragments)
+
+		sort.Slice(frags, func(i, j int) bool {
+			return frags[i].OldPosition < frags[j].OldPosition
+		})
+
+		// TODO(bkeyes): consider merging overlapping fragments
+		// right now, the application fails if fragments overlap, but it should be
+		// possible to precompute the result of applying them in order
+
+		for i, frag := range frags {
+			if err := a.ApplyTextFragment(dst, frag); err != nil {
+				return applyError(err, fragNum(i))
+			}
 		}
 	}
 
@@ -168,12 +191,10 @@ func (a *Applier) ApplyFile(dst io.Writer, f *File) error {
 // order of increasing start position. As a result, each fragment can be
 // applied at most once before a call to Reset.
 func (a *Applier) ApplyTextFragment(dst io.Writer, f *TextFragment) error {
-	switch a.applyType {
-	case applyInitial, applyText:
-	default:
+	if a.applyType != applyInitial && a.applyType != applyText {
 		return applyError(errApplyInProgress)
 	}
-	a.applyType = applyText
+	defer func() { a.applyType = applyText }()
 
 	// application code assumes fragment fields are consistent
 	if err := f.Validate(); err != nil {
@@ -265,7 +286,7 @@ func (a *Applier) ApplyBinaryFragment(dst io.Writer, f *BinaryFragment) error {
 	if a.applyType != applyInitial {
 		return applyError(errApplyInProgress)
 	}
-	a.applyType = applyText
+	defer func() { a.applyType = applyBinary }()
 
 	if f == nil {
 		return applyError(errors.New("nil fragment"))
@@ -395,7 +416,7 @@ func applyBinaryDeltaCopy(w io.Writer, op byte, delta []byte, src io.ReaderAt) (
 	// TODO(bkeyes): consider pooling these buffers
 	b := make([]byte, size)
 	if _, err := src.ReadAt(b, offset); err != nil {
-		return 0, delta, wrapEOF(err)
+		return 0, delta, err
 	}
 
 	_, err = w.Write(b)
@@ -411,11 +432,4 @@ func checkBinarySrcSize(r io.ReaderAt, size int64) error {
 		return &Conflict{"fragment src size does not match actual src size"}
 	}
 	return nil
-}
-
-func wrapEOF(err error) error {
-	if err == io.EOF {
-		err = io.ErrUnexpectedEOF
-	}
-	return err
 }
