@@ -48,6 +48,13 @@ func TestLineReaderAt(t *testing.T) {
 			EOF:        true,
 			EOFCount:   4,
 		},
+		"emptyInput": {
+			InputLines: 0,
+			Offset:     0,
+			Count:      2,
+			EOF:        true,
+			EOFCount:   0,
+		},
 		"offsetAfterEOF": {
 			InputLines: 8,
 			Offset:     10,

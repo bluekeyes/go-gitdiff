@@ -47,7 +47,7 @@ func (r *lineReaderAt) ReadLinesAt(lines [][]byte, offset int64) (n int, err err
 			return 0, err
 		}
 	}
-	if startLine > int64(len(r.index)) {
+	if startLine >= int64(len(r.index)) {
 		return 0, io.EOF
 	}
 
