@@ -36,16 +36,16 @@ extensively against real-world patches.
 [functionality][seletskiy] exist, so why did I write another?
 
 1. No other packages I found support binary diffs, as generated with the
-   `--binary` flag. This is the main reason for writing a new packages, as the
+   `--binary` flag. This is the main reason for writing a new package, as the
    format is pretty different from line-oriented diffs and is unique to Git.
 
-2. Most other packages only parse patches, so you need another package to apply
-   them (and if they do support applies, it is only for text files.)
+2. Most other packages only parse patches, so you need additional code to apply
+   them (and if applies are supported, it is only for text files.)
 
 3. This package aims to accept anything that `git apply` accepts, and closely
    follows the logic in [`apply.c`][apply.c].
 
-4. It seemed like a fun thing to write and a good way to learn more about Git.
+4. It seemed like a fun project and a way to learn more about Git.
 
 [sourcegraph]: https://github.com/sourcegraph/go-diff
 [sergi]: https://github.com/sergi/go-diff
