@@ -73,11 +73,8 @@ func TestApplierInvariants(t *testing.T) {
 	})
 }
 
-func TestTextFragmentApplyStrict(t *testing.T) {
-	tests := map[string]struct {
-		Files applyFiles
-		Err   error
-	}{
+func TestApplyTextFragment(t *testing.T) {
+	tests := map[string]applyTest{
 		"createFile": {Files: getApplyFiles("text_fragment_new")},
 		"deleteFile": {Files: getApplyFiles("text_fragment_delete_all")},
 
@@ -131,43 +128,18 @@ func TestTextFragmentApplyStrict(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			src, patch, out := test.Files.Load(t)
-
-			files, _, err := Parse(bytes.NewReader(patch))
-			if err != nil {
-				t.Fatalf("failed to parse patch file: %v", err)
-			}
-			if len(files) != 1 {
-				t.Fatalf("patch should contain exactly one file, but it has %d", len(files))
-			}
-			if len(files[0].TextFragments) != 1 {
-				t.Fatalf("patch should contain exactly one fragment, but it has %d", len(files[0].TextFragments))
-			}
-
-			applier := NewApplier(bytes.NewReader(src))
-
-			var dst bytes.Buffer
-			err = applier.ApplyTextFragment(&dst, files[0].TextFragments[0])
-			if test.Err != nil {
-				checkApplyError(t, test.Err, err)
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error applying fragment: %v", err)
-			}
-
-			if !bytes.Equal(out, dst.Bytes()) {
-				t.Errorf("incorrect result after apply\nexpected:\n%s\nactual:\n%s", out, dst.Bytes())
-			}
+			test.run(t, func(w io.Writer, applier *Applier, file *File) error {
+				if len(file.TextFragments) != 1 {
+					t.Fatalf("patch should contain exactly one fragment, but it has %d", len(file.TextFragments))
+				}
+				return applier.ApplyTextFragment(w, file.TextFragments[0])
+			})
 		})
 	}
 }
 
-func TestBinaryFragmentApply(t *testing.T) {
-	tests := map[string]struct {
-		Files applyFiles
-		Err   interface{}
-	}{
+func TestApplyBinaryFragment(t *testing.T) {
+	tests := map[string]applyTest{
 		"literalCreate":    {Files: getApplyFiles("bin_fragment_literal_create")},
 		"literalModify":    {Files: getApplyFiles("bin_fragment_literal_modify")},
 		"deltaModify":      {Files: getApplyFiles("bin_fragment_delta_modify")},
@@ -205,41 +177,73 @@ func TestBinaryFragmentApply(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			src, patch, out := test.Files.Load(t)
-
-			files, _, err := Parse(bytes.NewReader(patch))
-			if err != nil {
-				t.Fatalf("failed to parse patch file: %v", err)
-			}
-			if len(files) != 1 {
-				t.Fatalf("patch should contain exactly one file, but it has %d", len(files))
-			}
-
-			applier := NewApplier(bytes.NewReader(src))
-
-			var dst bytes.Buffer
-			err = applier.ApplyBinaryFragment(&dst, files[0].BinaryFragment)
-			if test.Err != nil {
-				checkApplyError(t, test.Err, err)
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error applying fragment: %v", err)
-			}
-
-			if !bytes.Equal(out, dst.Bytes()) {
-				t.Errorf("incorrect result after apply\nexpected:\n%x\nactual:\n%x", out, dst.Bytes())
-			}
+			test.run(t, func(w io.Writer, applier *Applier, file *File) error {
+				return applier.ApplyBinaryFragment(w, file.BinaryFragment)
+			})
 		})
 	}
 }
 
-func checkApplyError(t *testing.T, terr interface{}, err error) {
+func TestApplyFile(t *testing.T) {
+	tests := map[string]applyTest{
+		"textModify":   {Files: getApplyFiles("text_file_modify")},
+		"binaryModify": {Files: getApplyFiles("bin_file_modify")},
+		"modeChange":   {Files: getApplyFiles("file_mode_change")},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			test.run(t, func(w io.Writer, applier *Applier, file *File) error {
+				return applier.ApplyFile(w, file)
+			})
+		})
+	}
+}
+
+type applyTest struct {
+	Files applyFiles
+	Err   interface{}
+}
+
+func (at applyTest) run(t *testing.T, apply func(io.Writer, *Applier, *File) error) {
+	src, patch, out := at.Files.Load(t)
+
+	files, _, err := Parse(bytes.NewReader(patch))
+	if err != nil {
+		t.Fatalf("failed to parse patch file: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("patch should contain exactly one file, but it has %d", len(files))
+	}
+
+	applier := NewApplier(bytes.NewReader(src))
+
+	var dst bytes.Buffer
+	err = apply(&dst, applier, files[0])
+	if at.Err != nil {
+		at.assertError(t, err)
+		return
+	}
+	if err != nil {
+		var aerr *ApplyError
+		if errors.As(err, &aerr) {
+			t.Fatalf("unexpected error applying: at %d: fragment %d at %d: %v", aerr.Line, aerr.Fragment, aerr.FragmentLine, err)
+		} else {
+			t.Fatalf("unexpected error applying: %v", err)
+		}
+	}
+
+	if !bytes.Equal(out, dst.Bytes()) {
+		t.Errorf("incorrect result after apply\nexpected:\n%x\nactual:\n%x", out, dst.Bytes())
+	}
+}
+
+func (at applyTest) assertError(t *testing.T, err error) {
 	if err == nil {
 		t.Fatalf("expected error applying fragment, but got nil")
 	}
 
-	switch terr := terr.(type) {
+	switch terr := at.Err.(type) {
 	case string:
 		if !strings.Contains(err.Error(), terr) {
 			t.Fatalf("incorrect apply error: %q does not contain %q", err.Error(), terr)
@@ -249,7 +253,7 @@ func checkApplyError(t *testing.T, terr interface{}, err error) {
 			t.Fatalf("incorrect apply error: expected: %T (%v), actual: %T (%v)", terr, terr, err, err)
 		}
 	default:
-		t.Fatalf("unsupported error type: %T", terr)
+		t.Fatalf("unsupported expected error type: %T", terr)
 	}
 }
 
