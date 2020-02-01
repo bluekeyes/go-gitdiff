@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/rand"
 	"testing"
 )
 
@@ -110,6 +111,91 @@ func TestLineReaderAt(t *testing.T) {
 				if !bytes.Equal(output[i], lines[i]) {
 					t.Errorf("incorrect content in line %d:\nexpected: %q\nactual: %q", i, output[i], lines[i])
 				}
+			}
+		})
+	}
+}
+
+func TestCopyFrom(t *testing.T) {
+	tests := map[string]struct {
+		Bytes  int64
+		Offset int64
+	}{
+		"copyAll": {
+			Bytes: byteBufferSize / 2,
+		},
+		"copyPartial": {
+			Bytes:  byteBufferSize / 2,
+			Offset: byteBufferSize / 4,
+		},
+		"copyLarge": {
+			Bytes: 8 * byteBufferSize,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			data := make([]byte, test.Bytes)
+			rand.Read(data)
+
+			var dst bytes.Buffer
+			n, err := copyFrom(&dst, bytes.NewReader(data), test.Offset)
+			if err != nil {
+				t.Fatalf("unexpected error copying data: %v", err)
+			}
+			if n != test.Bytes-test.Offset {
+				t.Fatalf("incorrect number of bytes copied: expected %d, actual %d", test.Bytes-test.Offset, n)
+			}
+
+			expected := data[test.Offset:]
+			if !bytes.Equal(expected, dst.Bytes()) {
+				t.Fatalf("incorrect data copied:\nexpected: %v\nactual: %v", expected, dst.Bytes())
+			}
+		})
+	}
+}
+
+func TestCopyLinesFrom(t *testing.T) {
+	tests := map[string]struct {
+		Lines  int64
+		Offset int64
+	}{
+		"copyAll": {
+			Lines: lineBufferSize / 2,
+		},
+		"copyPartial": {
+			Lines:  lineBufferSize / 2,
+			Offset: lineBufferSize / 4,
+		},
+		"copyLarge": {
+			Lines: 8 * lineBufferSize,
+		},
+	}
+
+	const lineLength = 128
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			data := make([]byte, test.Lines*lineLength)
+			for i := range data {
+				data[i] = byte(32 + rand.Intn(95)) // ascii letters, numbers, symbols
+				if i%lineLength == lineLength-1 {
+					data[i] = '\n'
+				}
+			}
+
+			var dst bytes.Buffer
+			n, err := copyLinesFrom(&dst, &lineReaderAt{r: bytes.NewReader(data)}, test.Offset)
+			if err != nil {
+				t.Fatalf("unexpected error copying data: %v", err)
+			}
+			if n != test.Lines-test.Offset {
+				t.Fatalf("incorrect number of lines copied: expected %d, actual %d", test.Lines-test.Offset, n)
+			}
+
+			expected := data[test.Offset*lineLength:]
+			if !bytes.Equal(expected, dst.Bytes()) {
+				t.Fatalf("incorrect data copied:\nexpected: %v\nactual: %v", expected, dst.Bytes())
 			}
 		})
 	}

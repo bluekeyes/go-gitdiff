@@ -147,11 +147,16 @@ func isLen(r io.ReaderAt, n int64) (bool, error) {
 	return false, err
 }
 
+const (
+	byteBufferSize = 32 * 1024 // from io.Copy
+	lineBufferSize = 32
+)
+
 // copyFrom writes bytes starting from offset off in src to dst stopping at the
 // end of src or at the first error. copyFrom returns the number of bytes
 // written and any error.
 func copyFrom(dst io.Writer, src io.ReaderAt, off int64) (written int64, err error) {
-	buf := make([]byte, 32*1024) // stolen from io.Copy
+	buf := make([]byte, byteBufferSize)
 	for {
 		nr, rerr := src.ReadAt(buf, off)
 		if nr > 0 {
@@ -167,6 +172,7 @@ func copyFrom(dst io.Writer, src io.ReaderAt, off int64) (written int64, err err
 				err = io.ErrShortWrite
 				break
 			}
+			off += int64(nr)
 		}
 		if rerr != nil {
 			if rerr != io.EOF {
@@ -182,7 +188,7 @@ func copyFrom(dst io.Writer, src io.ReaderAt, off int64) (written int64, err err
 // the end of src or at the first error. copyLinesFrom returns the number of
 // lines written and any error.
 func copyLinesFrom(dst io.Writer, src LineReaderAt, off int64) (written int64, err error) {
-	buf := make([][]byte, 32)
+	buf := make([][]byte, lineBufferSize)
 ReadLoop:
 	for {
 		nr, rerr := src.ReadLinesAt(buf, off)
@@ -201,6 +207,7 @@ ReadLoop:
 					break ReadLoop
 				}
 			}
+			off += int64(nr)
 		}
 		if rerr != nil {
 			if rerr != io.EOF {
