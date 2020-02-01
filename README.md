@@ -12,16 +12,26 @@ aims to parse anything accepted by the `git apply` command.
 ```golang
 patch, err := os.Open("changes.patch")
 if err != nil {
-    log.Fatalf(err)
-}
-
-files, preamble, err := gitdiff.Parse(patch)
-if err != nil {
-    log.Fatalf(err)
+    log.Fatal(err)
 }
 
 // files is a slice of *gitdiff.File describing the files changed in the patch
 // preamble is a string of the content of the patch before the first file
+files, preamble, err := gitdiff.Parse(patch)
+if err != nil {
+    log.Fatal(err)
+}
+
+code, err := os.Open("code.go")
+if err != nil {
+    log.Fatal(err)
+}
+
+// apply the changes in the patch to a source file
+var output bytes.Buffer
+if err := gitdiff.NewApplier(code).ApplyFile(&output, files[0]); err != nil {
+    log.Fatal(err)
+}
 ```
 
 ## Development Status
