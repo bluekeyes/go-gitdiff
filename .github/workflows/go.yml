@@ -1,5 +1,5 @@
 name: Go
-on: [push]
+on: [push, pull_request]
 jobs:
   verify:
     name: Verify
@@ -11,11 +11,17 @@ jobs:
           go-version: 1.13
         id: go
 
-      - name: Check out code into the Go module directory
-        uses: actions/checkout@v1
+      - name: Set up environment
+        runs: |
+          # https://github.com/actions/setup-go/issues/14
+          echo "::set-env name=GOPATH::$(go env GOPATH)"
+          echo "::add-path::$(go env GOPATH)/bin"
 
       - name: Install golangci-lint
         run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.23.1
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v1
 
       - name: Lint
         run: golangci-lint run
