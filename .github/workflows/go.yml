@@ -12,7 +12,7 @@ jobs:
         id: go
 
       - name: Set up environment
-        runs: |
+        run: |
           # https://github.com/actions/setup-go/issues/14
           echo "::set-env name=GOPATH::$(go env GOPATH)"
           echo "::add-path::$(go env GOPATH)/bin"
