@@ -98,6 +98,12 @@ const (
 	applyFile
 )
 
+// Apply is a convenience function that creates an Applier for src with default
+// settings and applies the changes in f, writing the result to dst.
+func Apply(dst io.Writer, src io.ReaderAt, f *File) error {
+	return NewApplier(src).ApplyFile(dst, f)
+}
+
 // Applier applies changes described in fragments to source data. If changes
 // are described in multiple fragments, those fragments must be applied in
 // order, usually by calling ApplyFile.
