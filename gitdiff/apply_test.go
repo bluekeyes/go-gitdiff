@@ -6,7 +6,6 @@ import (
 	"io"
 	"io/ioutil"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -221,7 +220,7 @@ func (at applyTest) run(t *testing.T, apply func(io.Writer, *Applier, *File) err
 	var dst bytes.Buffer
 	err = apply(&dst, applier, files[0])
 	if at.Err != nil {
-		at.assertError(t, err)
+		assertError(t, at.Err, err, "applying fragment")
 		return
 	}
 	if err != nil {
@@ -235,25 +234,6 @@ func (at applyTest) run(t *testing.T, apply func(io.Writer, *Applier, *File) err
 
 	if !bytes.Equal(out, dst.Bytes()) {
 		t.Errorf("incorrect result after apply\nexpected:\n%x\nactual:\n%x", out, dst.Bytes())
-	}
-}
-
-func (at applyTest) assertError(t *testing.T, err error) {
-	if err == nil {
-		t.Fatalf("expected error applying fragment, but got nil")
-	}
-
-	switch terr := at.Err.(type) {
-	case string:
-		if !strings.Contains(err.Error(), terr) {
-			t.Fatalf("incorrect apply error: %q does not contain %q", err.Error(), terr)
-		}
-	case error:
-		if !errors.Is(err, terr) {
-			t.Fatalf("incorrect apply error: expected: %T (%v), actual: %T (%v)", terr, terr, err, err)
-		}
-	default:
-		t.Fatalf("unsupported expected error type: %T", terr)
 	}
 }
 
