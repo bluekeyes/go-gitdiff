@@ -57,7 +57,7 @@ func (i PatchIdentity) String() string {
 
 // ParsePatchIdentity parses a patch identity string. A valid string contains a
 // non-empty name followed by an email address in angle brackets. Like Git,
-// ParsePatchIdentity does not require that the email addresses is valid or
+// ParsePatchIdentity does not require that the email address is valid or
 // properly formatted, only that it is non-empty. The name must not contain a
 // left angle bracket, '<', and the email address must not contain a right
 // angle bracket, '>'.
@@ -162,10 +162,9 @@ func ParsePatchDate(s string) PatchDate {
 // used by git format-patch.
 //
 // ParsePatchHeader makes no assumptions about the format of the patch title or
-// message other than removing leading and trailing whitespace on each line and
-// condensing blank lines. In particular, it does not remove the extra content
-// that git format-patch adds to make emailed patches friendlier, like subject
-// prefixes or commit stats.
+// message other than trimming whitespace and condensing blank lines. In
+// particular, it does not remove the extra content that git format-patch adds
+// to make emailed patches friendlier, like subject prefixes or commit stats.
 func ParsePatchHeader(s string) (*PatchHeader, error) {
 	r := bufio.NewReader(strings.NewReader(s))
 
