@@ -217,7 +217,7 @@ func parseHeaderPretty(prettyLine string, r io.Reader) (*PatchHeader, error) {
 	for s.Scan() {
 		line := s.Text()
 
-		// emtpy line marks end of fields, remaining lines are title/message
+		// empty line marks end of fields, remaining lines are title/message
 		if strings.TrimSpace(line) == "" {
 			break
 		}
