@@ -163,7 +163,7 @@ func TestParsePatchHeader(t *testing.T) {
 		Raw:    "Sat Apr 11 15:21:23 2020 -0700",
 	}
 	expectedTitle := "A sample commit to test header parsing"
-	expectedMsg := "The medium format shows the body, which\nmay wrap on to multiple lines.\n\nAnother body line."
+	expectedBody := "The medium format shows the body, which\nmay wrap on to multiple lines.\n\nAnother body line."
 
 	tests := map[string]struct {
 		Input  string
@@ -199,7 +199,7 @@ Date:   Sat Apr 11 15:21:23 2020 -0700
 				Author:     expectedIdentity,
 				AuthorDate: expectedDate,
 				Title:      expectedTitle,
-				Message:    expectedMsg,
+				Body:       expectedBody,
 			},
 		},
 		"prettyFull": {
@@ -219,7 +219,7 @@ Commit: Morton Haypenny <mhaypenny@example.com>
 				Author:    expectedIdentity,
 				Committer: expectedIdentity,
 				Title:     expectedTitle,
-				Message:   expectedMsg,
+				Body:      expectedBody,
 			},
 		},
 		"prettyFuller": {
@@ -243,7 +243,7 @@ CommitDate: Sat Apr 11 15:21:23 2020 -0700
 				Committer:     expectedIdentity,
 				CommitterDate: expectedDate,
 				Title:         expectedTitle,
-				Message:       expectedMsg,
+				Body:          expectedBody,
 			},
 		},
 		"mailbox": {
@@ -264,8 +264,8 @@ Another body line.
 					Parsed: expectedDate.Parsed,
 					Raw:    "Sat, 11 Apr 2020 15:21:23 -0700",
 				},
-				Title:   "[PATCH] " + expectedTitle,
-				Message: expectedMsg,
+				Title: "[PATCH] " + expectedTitle,
+				Body:  expectedBody,
 			},
 		},
 		"unwrapTitle": {
@@ -304,7 +304,7 @@ Date:   Sat Apr 11 15:21:23 2020 -0700
 				Author:     expectedIdentity,
 				AuthorDate: expectedDate,
 				Title:      expectedTitle,
-				Message:    expectedMsg,
+				Body:       expectedBody,
 			},
 		},
 		"ignoreLeadingBlankLines": {
@@ -354,8 +354,8 @@ Author: Morton Haypenny <mhaypenny@example.com>
 			if exp.Title != act.Title {
 				t.Errorf("incorrect parsed title:\n  expected: %q\n    actual: %q", exp.Title, act.Title)
 			}
-			if exp.Message != act.Message {
-				t.Errorf("incorrect parsed message:\n  expected: %q\n    actual: %q", exp.Message, act.Message)
+			if exp.Body != act.Body {
+				t.Errorf("incorrect parsed body:\n  expected: %q\n    actual: %q", exp.Body, act.Body)
 			}
 		})
 	}

@@ -35,10 +35,24 @@ type PatchHeader struct {
 	Committer     *PatchIdentity
 	CommitterDate *PatchDate
 
-	// The title and message summarizing the changes in the patch. Empty if a
-	// title or message is not included in the header.
-	Title   string
-	Message string
+	// The title and body of the commit message describing the changes in the
+	// patch. Empty if no message is included in the header.
+	Title string
+	Body  string
+}
+
+// Message returns the commit message for the header. The message consists of
+// the title and the body separated by an empty line.
+func (h *PatchHeader) Message() string {
+	var msg strings.Builder
+	if h != nil {
+		msg.WriteString(h.Title)
+		if h.Body != "" {
+			msg.WriteString("\n\n")
+			msg.WriteString(h.Body)
+		}
+	}
+	return msg.String()
 }
 
 // PatchIdentity identifies a person who authored or committed a patch.
@@ -253,24 +267,24 @@ func parseHeaderPretty(prettyLine string, r io.Reader) (*PatchHeader, error) {
 		return nil, s.Err()
 	}
 
-	title, indent := scanPatchTitle(s)
+	title, indent := scanMessageTitle(s)
 	if s.Err() != nil {
 		return nil, s.Err()
 	}
 	h.Title = title
 
 	if title != "" {
-		msg := scanPatchMessage(s, indent)
+		body := scanMessageBody(s, indent)
 		if s.Err() != nil {
 			return nil, s.Err()
 		}
-		h.Message = msg
+		h.Body = body
 	}
 
 	return h, nil
 }
 
-func scanPatchTitle(s *bufio.Scanner) (title string, indent string) {
+func scanMessageTitle(s *bufio.Scanner) (title string, indent string) {
 	var b strings.Builder
 	for i := 0; s.Scan(); i++ {
 		line := s.Text()
@@ -292,7 +306,7 @@ func scanPatchTitle(s *bufio.Scanner) (title string, indent string) {
 	return b.String(), indent
 }
 
-func scanPatchMessage(s *bufio.Scanner, indent string) string {
+func scanMessageBody(s *bufio.Scanner, indent string) string {
 	var b strings.Builder
 	var empty int
 	for i := 0; s.Scan(); i++ {
@@ -351,7 +365,7 @@ func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
 	h.Title = msg.Header.Get("Subject")
 
 	s := bufio.NewScanner(msg.Body)
-	h.Message = scanPatchMessage(s, "")
+	h.Body = scanMessageBody(s, "")
 	if s.Err() != nil {
 		return nil, s.Err()
 	}
