@@ -185,9 +185,33 @@ func TestApplyBinaryFragment(t *testing.T) {
 
 func TestApplyFile(t *testing.T) {
 	tests := map[string]applyTest{
-		"textModify":   {Files: getApplyFiles("text_file_modify")},
-		"binaryModify": {Files: getApplyFiles("bin_file_modify")},
-		"modeChange":   {Files: getApplyFiles("file_mode_change")},
+		"textModify": {
+			Files: applyFiles{
+				Src:   "file_text.src",
+				Patch: "file_text_modify.patch",
+				Out:   "file_text_modify.out",
+			},
+		},
+		"textDelete": {
+			Files: applyFiles{
+				Src:   "file_text.src",
+				Patch: "file_text_delete.patch",
+				Out:   "file_text_delete.out",
+			},
+		},
+		"textErrorPartialDelete": {
+			Files: applyFiles{
+				Src:   "file_text.src",
+				Patch: "file_text_error_partial_delete.patch",
+			},
+			Err: &Conflict{},
+		},
+		"binaryModify": {
+			Files: getApplyFiles("file_bin_modify"),
+		},
+		"modeChange": {
+			Files: getApplyFiles("file_mode_change"),
+		},
 	}
 
 	for name, test := range tests {
@@ -233,7 +257,7 @@ func (at applyTest) run(t *testing.T, apply func(io.Writer, *Applier, *File) err
 	}
 
 	if !bytes.Equal(out, dst.Bytes()) {
-		t.Errorf("incorrect result after apply\nexpected:\n%x\nactual:\n%x", out, dst.Bytes())
+		t.Errorf("incorrect result after apply\nexpected:\n%q\nactual:\n%q", out, dst.Bytes())
 	}
 }
 
