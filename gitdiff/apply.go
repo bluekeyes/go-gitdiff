@@ -264,7 +264,10 @@ func (a *Applier) ApplyTextFragment(dst io.Writer, f *TextFragment) error {
 	if f.NewPosition == 0 && f.NewLines == 0 {
 		var b [1][]byte
 		n, err := a.lineSrc.ReadLinesAt(b[:], a.nextLine)
-		if err != io.EOF || n > 0 {
+		if err != nil && err != io.EOF {
+			return applyError(err, lineNum(a.nextLine))
+		}
+		if n > 0 {
 			return applyError(&Conflict{"src still has content after full delete"}, lineNum(a.nextLine))
 		}
 	}
