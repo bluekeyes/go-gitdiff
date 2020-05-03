@@ -1,6 +1,6 @@
-diff --git a/gitdiff/testdata/apply/text_file_modify.src b/gitdiff/testdata/apply/text_file_modify.src
---- a/gitdiff/testdata/apply/text_file_modify.src
-+++ b/gitdiff/testdata/apply/text_file_modify.src
+diff --git a/gitdiff/testdata/apply/file_text.src b/gitdiff/testdata/apply/file_text.src
+--- a/gitdiff/testdata/apply/file_text.src
++++ b/gitdiff/testdata/apply/file_text.src
 @@ -1,4 +1,4 @@
 -this is line 1
 +the first line is different

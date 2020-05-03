@@ -1,4 +1,4 @@
-diff --git a/gitdiff/testdata/apply/bin_file_modify.src b/gitdiff/testdata/apply/bin_file_modify.src
+diff --git a/gitdiff/testdata/apply/file_bin_modify.src b/gitdiff/testdata/apply/file_bin_modify.src
 GIT binary patch
 delta 172
 zcmV;d08{^f2)qc8AP{I3VQ>J`s>wb0HU+h#6w8q?tUO~cHmDjZi2<8yZ9XmKhhMdo
