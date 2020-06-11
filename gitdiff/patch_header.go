@@ -126,10 +126,10 @@ func ParsePatchDate(s string) PatchDate {
 	const (
 		isoFormat          = "2006-01-02 15:04:05 -0700"
 		isoStrictFormat    = "2006-01-02T15:04:05-07:00"
-		rfc2822Format      = "Mon, 02 Jan 2006 15:04:05 -0700"
+		rfc2822Format      = "Mon, 2 Jan 2006 15:04:05 -0700"
 		shortFormat        = "2006-01-02"
-		defaultFormat      = "Mon Jan 02 15:04:05 2006 -0700"
-		defaultLocalFormat = "Mon Jan 02 15:04:05 2006"
+		defaultFormat      = "Mon Jan 2 15:04:05 2006 -0700"
+		defaultLocalFormat = "Mon Jan 2 15:04:05 2006"
 	)
 
 	d := PatchDate{Raw: s}
