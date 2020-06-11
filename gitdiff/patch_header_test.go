@@ -65,72 +65,72 @@ func TestParsePatchIdentity(t *testing.T) {
 }
 
 func TestParsePatchDate(t *testing.T) {
-	expected := time.Date(2020, 04, 11, 22, 21, 23, 0, time.UTC)
+	expected := time.Date(2020, 4, 9, 8, 7, 6, 0, time.UTC)
 
 	tests := map[string]struct {
 		Input  string
 		Output PatchDate
 	}{
 		"default": {
-			Input: "Sat Apr 11 15:21:23 2020 -0700",
+			Input: "Thu Apr 9 01:07:06 2020 -0700",
 			Output: PatchDate{
 				Parsed: expected,
-				Raw:    "Sat Apr 11 15:21:23 2020 -0700",
+				Raw:    "Thu Apr 9 01:07:06 2020 -0700",
 			},
 		},
 		"defaultLocal": {
-			Input: "Sat Apr 11 15:21:23 2020",
+			Input: "Thu Apr 9 01:07:06 2020",
 			Output: PatchDate{
-				Parsed: time.Date(2020, 04, 11, 15, 21, 23, 0, time.Local),
-				Raw:    "Sat Apr 11 15:21:23 2020",
+				Parsed: time.Date(2020, 4, 9, 1, 7, 6, 0, time.Local),
+				Raw:    "Thu Apr 9 01:07:06 2020",
 			},
 		},
 		"iso": {
-			Input: "2020-04-11 15:21:23 -0700",
+			Input: "2020-04-09 01:07:06 -0700",
 			Output: PatchDate{
 				Parsed: expected,
-				Raw:    "2020-04-11 15:21:23 -0700",
+				Raw:    "2020-04-09 01:07:06 -0700",
 			},
 		},
 		"isoStrict": {
-			Input: "2020-04-11T15:21:23-07:00",
+			Input: "2020-04-09T01:07:06-07:00",
 			Output: PatchDate{
 				Parsed: expected,
-				Raw:    "2020-04-11T15:21:23-07:00",
+				Raw:    "2020-04-09T01:07:06-07:00",
 			},
 		},
 		"rfc": {
-			Input: "Sat, 11 Apr 2020 15:21:23 -0700",
+			Input: "Thu, 9 Apr 2020 01:07:06 -0700",
 			Output: PatchDate{
 				Parsed: expected,
-				Raw:    "Sat, 11 Apr 2020 15:21:23 -0700",
+				Raw:    "Thu, 9 Apr 2020 01:07:06 -0700",
 			},
 		},
 		"short": {
-			Input: "2020-04-11",
+			Input: "2020-04-09",
 			Output: PatchDate{
-				Parsed: time.Date(2020, 04, 11, 0, 0, 0, 0, time.Local),
-				Raw:    "2020-04-11",
+				Parsed: time.Date(2020, 4, 9, 0, 0, 0, 0, time.Local),
+				Raw:    "2020-04-09",
 			},
 		},
 		"raw": {
-			Input: "1586643683 -0700",
+			Input: "1586419626 -0700",
 			Output: PatchDate{
 				Parsed: expected,
-				Raw:    "1586643683 -0700",
+				Raw:    "1586419626 -0700",
 			},
 		},
 		"unix": {
-			Input: "1586643683",
+			Input: "1586419626",
 			Output: PatchDate{
 				Parsed: expected,
-				Raw:    "1586643683",
+				Raw:    "1586419626",
 			},
 		},
 		"unknownFormat": {
-			Input: "4/11/2020 15:21:23 PDT",
+			Input: "4/9/2020 01:07:06 PDT",
 			Output: PatchDate{
-				Raw: "4/11/2020 15:21:23 PDT",
+				Raw: "4/9/2020 01:07:06 PDT",
 			},
 		},
 		"empty": {
