@@ -69,84 +69,62 @@ func TestParsePatchDate(t *testing.T) {
 
 	tests := map[string]struct {
 		Input  string
-		Output PatchDate
+		Output time.Time
+		Err    interface{}
 	}{
 		"default": {
-			Input: "Thu Apr 9 01:07:06 2020 -0700",
-			Output: PatchDate{
-				Parsed: expected,
-				Raw:    "Thu Apr 9 01:07:06 2020 -0700",
-			},
+			Input:  "Thu Apr 9 01:07:06 2020 -0700",
+			Output: expected,
 		},
 		"defaultLocal": {
-			Input: "Thu Apr 9 01:07:06 2020",
-			Output: PatchDate{
-				Parsed: time.Date(2020, 4, 9, 1, 7, 6, 0, time.Local),
-				Raw:    "Thu Apr 9 01:07:06 2020",
-			},
+			Input:  "Thu Apr 9 01:07:06 2020",
+			Output: time.Date(2020, 4, 9, 1, 7, 6, 0, time.Local),
 		},
 		"iso": {
-			Input: "2020-04-09 01:07:06 -0700",
-			Output: PatchDate{
-				Parsed: expected,
-				Raw:    "2020-04-09 01:07:06 -0700",
-			},
+			Input:  "2020-04-09 01:07:06 -0700",
+			Output: expected,
 		},
 		"isoStrict": {
-			Input: "2020-04-09T01:07:06-07:00",
-			Output: PatchDate{
-				Parsed: expected,
-				Raw:    "2020-04-09T01:07:06-07:00",
-			},
+			Input:  "2020-04-09T01:07:06-07:00",
+			Output: expected,
 		},
 		"rfc": {
-			Input: "Thu, 9 Apr 2020 01:07:06 -0700",
-			Output: PatchDate{
-				Parsed: expected,
-				Raw:    "Thu, 9 Apr 2020 01:07:06 -0700",
-			},
+			Input:  "Thu, 9 Apr 2020 01:07:06 -0700",
+			Output: expected,
 		},
 		"short": {
-			Input: "2020-04-09",
-			Output: PatchDate{
-				Parsed: time.Date(2020, 4, 9, 0, 0, 0, 0, time.Local),
-				Raw:    "2020-04-09",
-			},
+			Input:  "2020-04-09",
+			Output: time.Date(2020, 4, 9, 0, 0, 0, 0, time.Local),
 		},
 		"raw": {
-			Input: "1586419626 -0700",
-			Output: PatchDate{
-				Parsed: expected,
-				Raw:    "1586419626 -0700",
-			},
+			Input:  "1586419626 -0700",
+			Output: expected,
 		},
 		"unix": {
-			Input: "1586419626",
-			Output: PatchDate{
-				Parsed: expected,
-				Raw:    "1586419626",
-			},
+			Input:  "1586419626",
+			Output: expected,
 		},
 		"unknownFormat": {
 			Input: "4/9/2020 01:07:06 PDT",
-			Output: PatchDate{
-				Raw: "4/9/2020 01:07:06 PDT",
-			},
+			Err:   "unknown date format",
 		},
 		"empty": {
-			Input:  "",
-			Output: PatchDate{},
+			Input: "",
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			d := ParsePatchDate(test.Input)
-			if test.Output.Raw != d.Raw {
-				t.Errorf("incorrect raw date: expected %q, actual %q", test.Output.Raw, d.Raw)
+			d, err := ParsePatchDate(test.Input)
+			if test.Err != nil {
+				assertError(t, test.Err, err, "parsing date")
+				return
 			}
-			if !test.Output.Parsed.Equal(d.Parsed) {
-				t.Errorf("incorrect parsed date: expected %v, actual %v", test.Output.Parsed, d.Parsed)
+			if err != nil {
+				t.Fatalf("unexpected error parsing date: %v", err)
+			}
+			if !test.Output.Equal(d) {
+				t.Errorf("incorrect parsed date: expected %v, actual %v", test.Output, d)
 			}
 		})
 	}
@@ -158,10 +136,7 @@ func TestParsePatchHeader(t *testing.T) {
 		Name:  "Morton Haypenny",
 		Email: "mhaypenny@example.com",
 	}
-	expectedDate := &PatchDate{
-		Parsed: time.Date(2020, 04, 11, 15, 21, 23, 0, time.FixedZone("PDT", -7*60*60)),
-		Raw:    "Sat Apr 11 15:21:23 2020 -0700",
-	}
+	expectedDate := time.Date(2020, 04, 11, 15, 21, 23, 0, time.FixedZone("PDT", -7*60*60))
 	expectedTitle := "A sample commit to test header parsing"
 	expectedBody := "The medium format shows the body, which\nmay wrap on to multiple lines.\n\nAnother body line."
 
@@ -258,14 +233,11 @@ may wrap on to multiple lines.
 Another body line.
 `,
 			Header: PatchHeader{
-				SHA:    expectedSHA,
-				Author: expectedIdentity,
-				AuthorDate: &PatchDate{
-					Parsed: expectedDate.Parsed,
-					Raw:    "Sat, 11 Apr 2020 15:21:23 -0700",
-				},
-				Title: "[PATCH] " + expectedTitle,
-				Body:  expectedBody,
+				SHA:        expectedSHA,
+				Author:     expectedIdentity,
+				AuthorDate: expectedDate,
+				Title:      "[PATCH] " + expectedTitle,
+				Body:       expectedBody,
 			},
 		},
 		"unwrapTitle": {
@@ -346,10 +318,14 @@ Author: Morton Haypenny <mhaypenny@example.com>
 			}
 
 			assertPatchIdentity(t, "author", exp.Author, act.Author)
-			assertPatchDate(t, "author", exp.AuthorDate, act.AuthorDate)
+			if !exp.AuthorDate.Equal(act.AuthorDate) {
+				t.Errorf("incorrect parsed author date: expected %v, but got %v", exp.AuthorDate, act.AuthorDate)
+			}
 
 			assertPatchIdentity(t, "committer", exp.Committer, act.Committer)
-			assertPatchDate(t, "committer", exp.CommitterDate, act.CommitterDate)
+			if !exp.CommitterDate.Equal(act.CommitterDate) {
+				t.Errorf("incorrect parsed committer date: expected %v, but got %v", exp.CommitterDate, act.CommitterDate)
+			}
 
 			if exp.Title != act.Title {
 				t.Errorf("incorrect parsed title:\n  expected: %q\n    actual: %q", exp.Title, act.Title)
@@ -370,17 +346,5 @@ func assertPatchIdentity(t *testing.T, kind string, exp, act *PatchIdentity) {
 		t.Errorf("incorrect parsed %s: expected %+v, but got nil", kind, exp)
 	case exp.Name != act.Name || exp.Email != act.Email:
 		t.Errorf("incorrect parsed %s, expected %+v, bot got %+v", kind, exp, act)
-	}
-}
-
-func assertPatchDate(t *testing.T, kind string, exp, act *PatchDate) {
-	switch {
-	case exp == nil && act == nil:
-	case exp == nil && act != nil:
-		t.Errorf("incorrect parsed %s date: expected nil, but got %+v", kind, act)
-	case exp != nil && act == nil:
-		t.Errorf("incorrect parsed %s date: expected %+v, but got nil", kind, exp)
-	case exp.Raw != act.Raw || !exp.Parsed.Equal(act.Parsed):
-		t.Errorf("incorrect parsed %s date, expected %+v, bot got %+v", kind, exp, act)
 	}
 }
