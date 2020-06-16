@@ -25,15 +25,15 @@ type PatchHeader struct {
 	// not included in the header.
 	SHA string
 
-	// The author details of the patch. Nil if author information is not
-	// included in the header.
+	// The author details of the patch. If these details are not included in
+	// the header, Author is nil and AuthorDate is the zero time.
 	Author     *PatchIdentity
-	AuthorDate *PatchDate
+	AuthorDate time.Time
 
-	// The committer details of the patch. Nil if committer information is not
-	// included in the header.
+	// The committer details of the patch. If these details are not included in
+	// the header, Committer is nil and CommitterDate is the zero time.
 	Committer     *PatchIdentity
-	CommitterDate *PatchDate
+	CommitterDate time.Time
 
 	// The title and body of the commit message describing the changes in the
 	// patch. Empty if no message is included in the header.
@@ -104,25 +104,11 @@ func ParsePatchIdentity(s string) (PatchIdentity, error) {
 	return PatchIdentity{Name: name, Email: email}, nil
 }
 
-// PatchDate is the timestamp when a patch was authored or committed. It
-// contains a raw string version of the date and a parsed version if the date
-// is in a known format.
-type PatchDate struct {
-	Parsed time.Time
-	Raw    string
-}
-
-// IsParsed returns true if the PatchDate has a parsed time.
-func (d PatchDate) IsParsed() bool {
-	return !d.Parsed.IsZero()
-}
-
-// ParsePatchDate parses a patch date string. If s is in a supported format,
-// the PatchDate has both the Raw and Parsed initialized.
-//
-// ParsePatchDate supports the iso, rfc, short, raw, unix, and default formats
-// (with local variants) used by the --date flag in Git.
-func ParsePatchDate(s string) PatchDate {
+// ParsePatchDate parses a patch date string. It returns the parsed time or an
+// error if s has an unknown format. ParsePatchDate supports the iso, rfc,
+// short, raw, unix, and default formats (with local variants) used by the
+// --date flag in Git.
+func ParsePatchDate(s string) (time.Time, error) {
 	const (
 		isoFormat          = "2006-01-02 15:04:05 -0700"
 		isoStrictFormat    = "2006-01-02T15:04:05-07:00"
@@ -132,7 +118,9 @@ func ParsePatchDate(s string) PatchDate {
 		defaultLocalFormat = "Mon Jan 2 15:04:05 2006"
 	)
 
-	d := PatchDate{Raw: s}
+	if s == "" {
+		return time.Time{}, nil
+	}
 
 	for _, fmt := range []string{
 		isoFormat,
@@ -143,15 +131,13 @@ func ParsePatchDate(s string) PatchDate {
 		defaultLocalFormat,
 	} {
 		if t, err := time.ParseInLocation(fmt, s, time.Local); err == nil {
-			d.Parsed = t
-			return d
+			return t, nil
 		}
 	}
 
 	// unix format
 	if unix, err := strconv.ParseInt(s, 10, 64); err == nil {
-		d.Parsed = time.Unix(unix, 0)
-		return d
+		return time.Unix(unix, 0), nil
 	}
 
 	// raw format
@@ -159,12 +145,11 @@ func ParsePatchDate(s string) PatchDate {
 		unix, uerr := strconv.ParseInt(s[:space], 10, 64)
 		zone, zerr := time.Parse("-0700", s[space+1:])
 		if uerr == nil && zerr == nil {
-			d.Parsed = time.Unix(unix, 0).In(zone.Location())
-			return d
+			return time.Unix(unix, 0).In(zone.Location()), nil
 		}
 	}
 
-	return d
+	return time.Time{}, fmt.Errorf("unknown date format: %s", s)
 }
 
 // ParsePatchHeader parses a preamble string as returned by Parse into a
@@ -251,16 +236,25 @@ func parseHeaderPretty(prettyLine string, r io.Reader) (*PatchHeader, error) {
 			h.Committer = &u
 
 		case strings.HasPrefix(line, datePrefix):
-			d := ParsePatchDate(strings.TrimSpace(line[len(datePrefix):]))
-			h.AuthorDate = &d
+			d, err := ParsePatchDate(strings.TrimSpace(line[len(datePrefix):]))
+			if err != nil {
+				return nil, err
+			}
+			h.AuthorDate = d
 
 		case strings.HasPrefix(line, authorDatePrefix):
-			d := ParsePatchDate(strings.TrimSpace(line[len(authorDatePrefix):]))
-			h.AuthorDate = &d
+			d, err := ParsePatchDate(strings.TrimSpace(line[len(authorDatePrefix):]))
+			if err != nil {
+				return nil, err
+			}
+			h.AuthorDate = d
 
 		case strings.HasPrefix(line, commitDatePrefix):
-			d := ParsePatchDate(strings.TrimSpace(line[len(commitDatePrefix):]))
-			h.CommitterDate = &d
+			d, err := ParsePatchDate(strings.TrimSpace(line[len(commitDatePrefix):]))
+			if err != nil {
+				return nil, err
+			}
+			h.CommitterDate = d
 		}
 	}
 	if s.Err() != nil {
@@ -358,8 +352,11 @@ func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
 
 	date := msg.Header.Get("Date")
 	if date != "" {
-		d := ParsePatchDate(date)
-		h.AuthorDate = &d
+		d, err := ParsePatchDate(date)
+		if err != nil {
+			return nil, err
+		}
+		h.AuthorDate = d
 	}
 
 	h.Title = msg.Header.Get("Subject")
