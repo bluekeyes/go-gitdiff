@@ -236,7 +236,7 @@ Another body line.
 				SHA:        expectedSHA,
 				Author:     expectedIdentity,
 				AuthorDate: expectedDate,
-				Title:      "[PATCH] " + expectedTitle,
+				Title:      expectedTitle,
 				Body:       expectedBody,
 			},
 		},
@@ -346,5 +346,53 @@ func assertPatchIdentity(t *testing.T, kind string, exp, act *PatchIdentity) {
 		t.Errorf("incorrect parsed %s: expected %+v, but got nil", kind, exp)
 	case exp.Name != act.Name || exp.Email != act.Email:
 		t.Errorf("incorrect parsed %s, expected %+v, bot got %+v", kind, exp, act)
+	}
+}
+
+func TestCleanupSubject(t *testing.T) {
+	exp := "A sample commit to test header parsing"
+	tests := map[string]string{
+		"plain":        "",
+		"patch":        "[PATCH] ",
+		"patchv5":      "[PATCH v5] ",
+		"patchrfc":     "[PATCH RFC] ",
+		"patchnospace": "[PATCH]",
+		"space":        "   ",
+		"re":           "re: ",
+		"Re":           "Re: ",
+		"RE":           "rE: ",
+		"rere":         "re: re: ",
+	}
+
+	for name, prefix := range tests {
+		gotprefix, gottitle := parseSubject(prefix + exp)
+		if gottitle != exp {
+			t.Errorf("%s: Incorrect parsing of prefix %s: got title %s, wanted %s",
+				name, prefix, gottitle, exp)
+		}
+		if gotprefix != prefix {
+			t.Errorf("%s: Incorrect parsing of prefix %s: got prefix %s",
+				name, prefix, gotprefix)
+		}
+	}
+
+	moretests := map[string]struct {
+		in, eprefix, etitle string
+	}{
+		"Reimplement":       {"Reimplement something", "", "Reimplement something"},
+		"patch-reimplement": {"[PATCH v5] Reimplement something", "[PATCH v5] ", "Reimplement something"},
+		"Openbracket":       {"[Just to annoy people", "", "[Just to annoy people"},
+	}
+
+	for name, test := range moretests {
+		prefix, title := parseSubject(test.in)
+		if title != test.etitle {
+			t.Errorf("%s: Incorrect parsing of %s: got title %s, wanted %s",
+				name, test.in, title, test.etitle)
+		}
+		if prefix != test.eprefix {
+			t.Errorf("%s: Incorrect parsing of %s: got prefix %s, wanted %s",
+				name, test.in, title, test.etitle)
+		}
 	}
 }

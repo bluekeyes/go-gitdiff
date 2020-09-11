@@ -39,6 +39,11 @@ type PatchHeader struct {
 	// patch. Empty if no message is included in the header.
 	Title string
 	Body  string
+
+	// If the preamble looks like an email, ParsePatchHeader will
+	// remove prefixes such as `Re: ` and `[PATCH v3 5/17]` from the
+	// Title and place them here.
+	SubjectPrefix string
 }
 
 // Message returns the commit message for the header. The message consists of
@@ -160,10 +165,14 @@ func ParsePatchDate(s string) (time.Time, error) {
 // formats used by git diff, git log, and git show and the UNIX mailbox format
 // used by git format-patch.
 //
-// ParsePatchHeader makes no assumptions about the format of the patch title or
-// message other than trimming whitespace and condensing blank lines. In
-// particular, it does not remove the extra content that git format-patch adds
-// to make emailed patches friendlier, like subject prefixes or commit stats.
+// If ParsePatchHeader detect that it is handling an email, it will
+// remove extra content at the beginning of the title line, such as
+// `[PATCH]` or `Re:` in the same way that `git mailinfo` does.
+// SubjectPrefix will be set to the value of this removed string.
+// (`git mailinfo` is the core part of `git am` that pulls information
+// out of an individual mail.)  Unline `git mailinfo`,
+// ParsePatchHeader does not at the moment remove commit states or
+// other extraneous matter after a `---` line.
 func ParsePatchHeader(s string) (*PatchHeader, error) {
 	r := bufio.NewReader(strings.NewReader(s))
 
@@ -359,7 +368,8 @@ func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
 		h.AuthorDate = d
 	}
 
-	h.Title = msg.Header.Get("Subject")
+	subject := msg.Header.Get("Subject")
+	h.SubjectPrefix, h.Title = parseSubject(subject)
 
 	s := bufio.NewScanner(msg.Body)
 	h.Body = scanMessageBody(s, "")
@@ -368,4 +378,52 @@ func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
 	}
 
 	return h, nil
+}
+
+// Takes an email subject and returns the patch prefix and commit
+// title.  i.e., `[PATCH v3 3/5] Implement foo` would return `[PATCH
+// v3 3/5] ` and `Implement foo`
+func parseSubject(s string) (string, string) {
+	// This is meant to be compatible with
+	// https://github.com/git/git/blob/master/mailinfo.c:cleanup_subject().
+	// If compatibility with `git am` drifts, go there to see if there
+	// are any updates.
+
+	at := 0
+	for at < len(s) {
+		switch s[at] {
+		case 'r', 'R':
+			// Detect re:, Re:, rE: and RE:
+			if at+2 < len(s) &&
+				(s[at+1] == 'e' || s[at+1] == 'E') &&
+				s[at+2] == ':' {
+				at += 3
+				continue
+			}
+
+		case ' ', '\t', ':':
+			// Delete whitespace and duplicate ':' characters
+			at++
+			continue
+
+		case '[':
+			// Look for closing parenthesis
+			j := at + 1
+			for ; j < len(s); j++ {
+				if s[j] == ']' {
+					break
+				}
+			}
+
+			if j < len(s) {
+				at = j + 1
+				continue
+			}
+		}
+
+		// Only loop if we actually removed something
+		break
+	}
+
+	return s[:at], s[at:]
 }
