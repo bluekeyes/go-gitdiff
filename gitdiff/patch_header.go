@@ -44,6 +44,11 @@ type PatchHeader struct {
 	// remove prefixes such as `Re: ` and `[PATCH v3 5/17]` from the
 	// Title and place them here.
 	SubjectPrefix string
+
+	// If the preamble looks like an email, and it contains a `---`
+	// line, that line will be removed and everything after it will be
+	// placed in BodyAppendix.
+	BodyAppendix string
 }
 
 // Message returns the commit message for the header. The message consists of
@@ -165,14 +170,23 @@ func ParsePatchDate(s string) (time.Time, error) {
 // formats used by git diff, git log, and git show and the UNIX mailbox format
 // used by git format-patch.
 //
-// If ParsePatchHeader detect that it is handling an email, it will
+// If ParsePatchHeader detects that it is handling an email, it will
 // remove extra content at the beginning of the title line, such as
 // `[PATCH]` or `Re:` in the same way that `git mailinfo` does.
 // SubjectPrefix will be set to the value of this removed string.
 // (`git mailinfo` is the core part of `git am` that pulls information
-// out of an individual mail.)  Unline `git mailinfo`,
-// ParsePatchHeader does not at the moment remove commit states or
-// other extraneous matter after a `---` line.
+// out of an individual mail.)
+//
+// Additionally, if ParsePatchHeader detects that it's handling an
+// email, it will remove a `---` line and put anything after it into
+// BodyAppendix.
+//
+// Those wishing the effect of a plain `git am` should use
+// `PatchHeader.Title + "\n" + PatchHeader.Body` (or
+// `PatchHeader.Message()`).  Those wishing to retain the subject
+// prefix and appendix material should use `PatchHeader.SubjectPrefix
+// + PatchHeader.Title + "\n" + PatchHeader.Body + "\n" +
+// PatchHeader.BodyAppendix`.
 func ParsePatchHeader(s string) (*PatchHeader, error) {
 	r := bufio.NewReader(strings.NewReader(s))
 
@@ -277,7 +291,8 @@ func parseHeaderPretty(prettyLine string, r io.Reader) (*PatchHeader, error) {
 	h.Title = title
 
 	if title != "" {
-		body := scanMessageBody(s, indent)
+		// Don't check for an appendix
+		body, _ := scanMessageBody(s, indent, false)
 		if s.Err() != nil {
 			return nil, s.Err()
 		}
@@ -309,29 +324,40 @@ func scanMessageTitle(s *bufio.Scanner) (title string, indent string) {
 	return b.String(), indent
 }
 
-func scanMessageBody(s *bufio.Scanner, indent string) string {
-	var b strings.Builder
+func scanMessageBody(s *bufio.Scanner, indent string, separateAppendix bool) (string, string) {
+	// Body and appendix
+	var body, appendix strings.Builder
+	c := &body
 	var empty int
 	for i := 0; s.Scan(); i++ {
 		line := s.Text()
-		if strings.TrimSpace(line) == "" {
+
+		line = strings.TrimRightFunc(line, unicode.IsSpace)
+		line = strings.TrimPrefix(line, indent)
+
+		if line == "" {
 			empty++
 			continue
 		}
 
-		if b.Len() > 0 {
-			b.WriteByte('\n')
+		// If requested, parse out "appendix" information (often added
+		// by `git format-patch` and removed by `git am`).
+		if separateAppendix && c == &body && line == "---" {
+			c = &appendix
+			continue
+		}
+
+		if c.Len() > 0 {
+			c.WriteByte('\n')
 			if empty > 0 {
-				b.WriteByte('\n')
+				c.WriteByte('\n')
 			}
 		}
 		empty = 0
 
-		line = strings.TrimRightFunc(line, unicode.IsSpace)
-		line = strings.TrimPrefix(line, indent)
-		b.WriteString(line)
+		c.WriteString(line)
 	}
-	return b.String()
+	return body.String(), appendix.String()
 }
 
 func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
@@ -372,7 +398,7 @@ func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
 	h.SubjectPrefix, h.Title = parseSubject(subject)
 
 	s := bufio.NewScanner(msg.Body)
-	h.Body = scanMessageBody(s, "")
+	h.Body, h.BodyAppendix = scanMessageBody(s, "", true)
 	if s.Err() != nil {
 		return nil, s.Err()
 	}
