@@ -289,6 +289,21 @@ CC: Joe Smith <joe.smith@company.com>
 				BodyAppendix: expectedBodyAppendix,
 			},
 		},
+		"mailboxMinimalNoName": {
+			Input: `From: <mhaypenny@example.com>
+Subject: [PATCH] A sample commit to test header parsing
+
+The medium format shows the body, which
+may wrap on to multiple lines.
+
+Another body line.
+`,
+			Header: PatchHeader{
+				Author: &PatchIdentity{expectedIdentity.Email, expectedIdentity.Email},
+				Title:  expectedTitle,
+				Body:   expectedBody,
+			},
+		},
 		"mailboxMinimal": {
 			Input: `From: Morton Haypenny <mhaypenny@example.com>
 Subject: [PATCH] A sample commit to test header parsing

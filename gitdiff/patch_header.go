@@ -386,7 +386,7 @@ func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
 	if len(addrs) > 0 {
 		addr := addrs[0]
 		if addr.Name == "" {
-			return nil, fmt.Errorf("invalid user string: %s", addr)
+			addr.Name = addr.Address
 		}
 		h.Author = &PatchIdentity{Name: addr.Name, Email: addr.Address}
 	}
