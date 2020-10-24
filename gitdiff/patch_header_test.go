@@ -139,6 +139,7 @@ func TestParsePatchHeader(t *testing.T) {
 	expectedDate := time.Date(2020, 04, 11, 15, 21, 23, 0, time.FixedZone("PDT", -7*60*60))
 	expectedTitle := "A sample commit to test header parsing"
 	expectedBody := "The medium format shows the body, which\nmay wrap on to multiple lines.\n\nAnother body line."
+	expectedBodyAppendix := "CC: Joe Smith <joe.smith@company.com>"
 
 	tests := map[string]struct {
 		Input  string
@@ -221,6 +222,32 @@ CommitDate: Sat Apr 11 15:21:23 2020 -0700
 				Body:          expectedBody,
 			},
 		},
+		"prettyAppendix": {
+			Input: `commit 61f5cd90bed4d204ee3feb3aa41ee91d4734855b
+Author:     Morton Haypenny <mhaypenny@example.com>
+AuthorDate: Sat Apr 11 15:21:23 2020 -0700
+Commit:     Morton Haypenny <mhaypenny@example.com>
+CommitDate: Sat Apr 11 15:21:23 2020 -0700
+
+    A sample commit to test header parsing
+
+    The medium format shows the body, which
+    may wrap on to multiple lines.
+
+    Another body line.
+    ---
+    CC: Joe Smith <joe.smith@company.com>
+`,
+			Header: PatchHeader{
+				SHA:           expectedSHA,
+				Author:        expectedIdentity,
+				AuthorDate:    expectedDate,
+				Committer:     expectedIdentity,
+				CommitterDate: expectedDate,
+				Title:         expectedTitle,
+				Body:          expectedBody + "\n---\n" + expectedBodyAppendix,
+			},
+		},
 		"mailbox": {
 			Input: `From 61f5cd90bed4d204ee3feb3aa41ee91d4734855b Mon Sep 17 00:00:00 2001
 From: Morton Haypenny <mhaypenny@example.com>
@@ -238,6 +265,28 @@ Another body line.
 				AuthorDate: expectedDate,
 				Title:      expectedTitle,
 				Body:       expectedBody,
+			},
+		},
+		"mailboxAppendix": {
+			Input: `From 61f5cd90bed4d204ee3feb3aa41ee91d4734855b Mon Sep 17 00:00:00 2001
+From: Morton Haypenny <mhaypenny@example.com>
+Date: Sat, 11 Apr 2020 15:21:23 -0700
+Subject: [PATCH] A sample commit to test header parsing
+
+The medium format shows the body, which
+may wrap on to multiple lines.
+
+Another body line.
+---
+CC: Joe Smith <joe.smith@company.com>
+`,
+			Header: PatchHeader{
+				SHA:          expectedSHA,
+				Author:       expectedIdentity,
+				AuthorDate:   expectedDate,
+				Title:        expectedTitle,
+				Body:         expectedBody,
+				BodyAppendix: expectedBodyAppendix,
 			},
 		},
 		"unwrapTitle": {
@@ -332,6 +381,10 @@ Author: Morton Haypenny <mhaypenny@example.com>
 			}
 			if exp.Body != act.Body {
 				t.Errorf("incorrect parsed body:\n  expected: %q\n    actual: %q", exp.Body, act.Body)
+			}
+			if exp.BodyAppendix != act.BodyAppendix {
+				t.Errorf("incorrect parsed body appendix:\n  expected: %q\n    actual: %q",
+					exp.BodyAppendix, act.BodyAppendix)
 			}
 		})
 	}
