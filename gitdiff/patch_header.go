@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	mailHeaderPrefix   = "From "
-	prettyHeaderPrefix = "commit "
+	mailHeaderPrefix        = "From "
+	prettyHeaderPrefix      = "commit "
+	mailMinimumHeaderPrefix = "From:"
 )
 
 // PatchHeader is a parsed version of the preamble content that appears before
@@ -210,6 +211,9 @@ func ParsePatchHeader(s string) (*PatchHeader, error) {
 	switch {
 	case strings.HasPrefix(line, mailHeaderPrefix):
 		return parseHeaderMail(line, r)
+	case strings.HasPrefix(line, mailMinimumHeaderPrefix):
+		r = bufio.NewReader(strings.NewReader(s))
+		return parseHeaderMail("", r)
 	case strings.HasPrefix(line, prettyHeaderPrefix):
 		return parseHeaderPretty(line, r)
 	}
@@ -368,9 +372,11 @@ func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
 
 	h := &PatchHeader{}
 
-	mailLine = mailLine[len(mailHeaderPrefix):]
-	if i := strings.IndexByte(mailLine, ' '); i > 0 {
-		h.SHA = mailLine[:i]
+	if len(mailLine) > len(mailHeaderPrefix) {
+		mailLine = mailLine[len(mailHeaderPrefix):]
+		if i := strings.IndexByte(mailLine, ' '); i > 0 {
+			h.SHA = mailLine[:i]
+		}
 	}
 
 	addrs, err := msg.Header.AddressList("From")
@@ -380,7 +386,7 @@ func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
 	if len(addrs) > 0 {
 		addr := addrs[0]
 		if addr.Name == "" {
-			return nil, fmt.Errorf("invalid user string: %s", addr)
+			addr.Name = addr.Address
 		}
 		h.Author = &PatchIdentity{Name: addr.Name, Email: addr.Address}
 	}
