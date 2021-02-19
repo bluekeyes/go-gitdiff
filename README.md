@@ -36,9 +36,13 @@ if err := gitdiff.NewApplier(code).ApplyFile(&output, files[0]); err != nil {
 
 ## Development Status
 
-Mostly complete, but API changes are possible. Patch parsing and strict
-application works and is well-covered by unit tests, but has not been validated
-extensively against real-world patches.
+Mostly complete. API changes are possible, particularly for patch application,
+but I expect the parsing interface and types to remain stable.
+
+Patch parsing and strict application are well-covered by unit tests and the
+library is used in a production application that parses and applies thousands of
+patches every day, but the space of all possible patches is large, so there are
+likely undiscovered bugs.
 
 ## Why another git/unified diff parser?
 
