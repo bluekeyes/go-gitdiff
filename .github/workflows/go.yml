@@ -9,23 +9,16 @@ jobs:
     name: Verify
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.13
-        uses: actions/setup-go@v1
+      - name: Set up Go 1.16
+        uses: actions/setup-go@v2
         with:
-          go-version: 1.13
-        id: go
-
-      - name: Set up environment
-        run: |
-          # https://github.com/actions/setup-go/issues/14
-          echo "::set-env name=GOPATH::$(go env GOPATH)"
-          echo "::add-path::$(go env GOPATH)/bin"
+          go-version: 1.16
 
       - name: Install golangci-lint
         run: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.23.1
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
 
       - name: Lint
         run: golangci-lint run
