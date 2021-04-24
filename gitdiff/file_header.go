@@ -214,7 +214,7 @@ func parseGitHeaderName(header string) (string, error) {
 		}
 
 		// git accepts multiple spaces after a quoted name, but not after an
-		// unquoated name, since the name might end with one or more spaces
+		// unquoted name, since the name might end with one or more spaces
 		for n < len(header) && isSpace(header[n]) {
 			n++
 		}
