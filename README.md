@@ -75,6 +75,7 @@ likely undiscovered bugs.
 
    - Numbers immediately followed by non-numeric characters
    - Trailing characters on a line after valid or expected content
+   - Malformed file header lines (lines that start with `diff --git`)
 
 2. Errors for invalid input are generally more verbose and specific than those
    from `git apply`.

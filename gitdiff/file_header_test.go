@@ -310,7 +310,7 @@ func TestCleanName(t *testing.T) {
 func TestParseName(t *testing.T) {
 	tests := map[string]struct {
 		Input  string
-		Term   rune
+		Term   byte
 		Drop   int
 		Output string
 		N      int
@@ -334,14 +334,17 @@ func TestParseName(t *testing.T) {
 		"dropPrefix": {
 			Input: "a/dir/file.txt", Drop: 1, Output: "dir/file.txt", N: 14,
 		},
-		"multipleNames": {
-			Input: "dir/a.txt dir/b.txt", Term: -1, Output: "dir/a.txt", N: 9,
+		"unquotedWithSpaces": {
+			Input: "dir/with spaces.txt", Output: "dir/with spaces.txt", N: 19,
+		},
+		"unquotedWithTrailingSpaces": {
+			Input: "dir/with spaces.space  ", Output: "dir/with spaces.space  ", N: 23,
 		},
 		"devNull": {
 			Input: "/dev/null", Term: '\t', Drop: 1, Output: "/dev/null", N: 9,
 		},
-		"newlineAlwaysSeparates": {
-			Input: "dir/file.txt\n", Term: 0, Output: "dir/file.txt", N: 12,
+		"newlineSeparates": {
+			Input: "dir/file.txt\n", Output: "dir/file.txt", N: 12,
 		},
 		"emptyString": {
 			Input: "", Err: true,
@@ -630,9 +633,33 @@ func TestParseGitHeaderName(t *testing.T) {
 			Input:  "a/dir/foo.txt b/dir/bar.txt",
 			Output: "",
 		},
-		"missingSecondName": {
-			Input: "a/dir/foo.txt",
-			Err:   true,
+		"matchingNamesWithSpaces": {
+			Input:  "a/dir/file with spaces.txt b/dir/file with spaces.txt",
+			Output: "dir/file with spaces.txt",
+		},
+		"matchingNamesWithTrailingSpaces": {
+			Input:  "a/dir/spaces   b/dir/spaces  ",
+			Output: "dir/spaces  ",
+		},
+		"matchingNamesQuoted": {
+			Input:  `"a/dir/\"quotes\".txt" "b/dir/\"quotes\".txt"`,
+			Output: `dir/"quotes".txt`,
+		},
+		"matchingNamesFirstQuoted": {
+			Input:  `"a/dir/file.txt" b/dir/file.txt`,
+			Output: "dir/file.txt",
+		},
+		"matchingNamesSecondQuoted": {
+			Input:  `a/dir/file.txt "b/dir/file.txt"`,
+			Output: "dir/file.txt",
+		},
+		"noSecondName": {
+			Input:  "a/dir/foo.txt",
+			Output: "",
+		},
+		"noSecondNameQuoted": {
+			Input:  `"a/dir/foo.txt"`,
+			Output: "",
 		},
 		"invalidName": {
 			Input: `"a/dir/file.txt b/dir/file.txt`,
