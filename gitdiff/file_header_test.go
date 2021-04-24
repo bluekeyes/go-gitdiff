@@ -657,6 +657,10 @@ func TestParseGitHeaderName(t *testing.T) {
 			Input:  "a/dir/foo.txt",
 			Output: "",
 		},
+		"noSecondNameQuoted": {
+			Input:  `"a/dir/foo.txt"`,
+			Output: "",
+		},
 		"invalidName": {
 			Input: `"a/dir/file.txt b/dir/file.txt`,
 			Err:   true,

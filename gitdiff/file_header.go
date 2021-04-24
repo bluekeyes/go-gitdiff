@@ -172,6 +172,7 @@ func (p *parser) ParseTraditionalFileHeader() (*File, error) {
 // If the names in the header do not match because the patch is a rename,
 // return an empty default name.
 func parseGitHeaderName(header string) (string, error) {
+	header = strings.TrimSuffix(header, "\n")
 	if len(header) == 0 {
 		return "", nil
 	}
@@ -217,14 +218,17 @@ func parseGitHeaderName(header string) (string, error) {
 		for n < len(header) && isSpace(header[n]) {
 			n++
 		}
-
-		if n < len(header) && header[n] == '"' {
-			second, _, err = parseQuotedName(header[n:])
-		} else {
-			second, _, err = parseUnquotedName(header[n:], 0)
+		if n == len(header) {
+			return "", nil
 		}
-		if err != nil {
-			return "", err
+
+		if header[n] == '"' {
+			second, _, err = parseQuotedName(header[n:])
+			if err != nil {
+				return "", err
+			}
+		} else {
+			second = header[n:]
 		}
 	}
 
@@ -240,16 +244,11 @@ func parseGitHeaderName(header string) (string, error) {
 	// since names may contain spaces, we can't use a known separator
 	// instead, look for a split that produces two equal names
 
-	end := strings.IndexByte(first, '\n')
-	if end < 0 {
-		end = len(first)
-	}
-
-	for i := 0; i < end-1; i++ {
+	for i := 0; i < len(first)-1; i++ {
 		if !isSpace(first[i]) {
 			continue
 		}
-		second = trimTreePrefix(first[i+1:end], 1)
+		second = trimTreePrefix(first[i+1:], 1)
 		if name := first[:i]; name == second {
 			return name, nil
 		}
