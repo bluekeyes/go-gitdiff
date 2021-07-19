@@ -2,6 +2,7 @@ package gitdiff
 
 import (
 	"bufio"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -457,5 +458,34 @@ func parseSubject(s string) (string, string) {
 		break
 	}
 
-	return s[:at], s[at:]
+	return s[:at], decodeUTF8Subject(s[at:])
+}
+
+func decodeUTF8Subject(encoded string) string {
+	if !strings.HasPrefix(encoded, "=?UTF-8?q?") {
+		// not UTF-8 encoded
+		return encoded
+	}
+
+	payload := strings.TrimPrefix(encoded, "=?UTF-8?q?")
+	payload = strings.TrimSuffix(payload, "?=")
+
+	at := 0
+	subject := ""
+
+	for at < len(payload) {
+		if payload[at] == '=' {
+			// detected a hex value
+			hexx := payload[at+1 : at+3]
+			hexbytes, _ := hex.DecodeString(hexx)
+			subject += string(hexbytes)
+			at += 3
+
+		} else {
+			subject += string(payload[at])
+			at++
+		}
+	}
+
+	return subject
 }
