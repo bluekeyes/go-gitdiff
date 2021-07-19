@@ -458,13 +458,13 @@ func parseSubject(s string) (string, string) {
 		break
 	}
 
-	return s[:at], decodeUTF8Subject(s[at:])
+	return s[:at], decodeSubject(s[at:])
 }
 
-// Decodes a subject line if encoded using quoted-printable UTF-8 Q encoding. This format is the
-// result of a `git format-patch` when the commit title has an emoji (or other non-ASCII character).
+// Decodes a subject line. Currently only supports quoted-printable UTF-8. This format is the result
+// of a `git format-patch` when the commit title has a non-ASCII character (i.e. an emoji).
 // See for reference: https://stackoverflow.com/questions/27695749/gmail-api-not-respecting-utf-encoding-in-subject
-func decodeUTF8Subject(encoded string) string {
+func decodeSubject(encoded string) string {
 	if !strings.HasPrefix(encoded, "=?UTF-8?q?") {
 		// not UTF-8 encoded
 		return encoded
