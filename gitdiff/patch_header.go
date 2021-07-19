@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/quotedprintable"
 	"net/mail"
 	"strconv"
 	"strings"
@@ -457,5 +458,30 @@ func parseSubject(s string) (string, string) {
 		break
 	}
 
-	return s[:at], s[at:]
+	return s[:at], decodeSubject(s[at:])
+}
+
+// Decodes a subject line. Currently only supports quoted-printable UTF-8. This format is the result
+// of a `git format-patch` when the commit title has a non-ASCII character (i.e. an emoji).
+// See for reference: https://stackoverflow.com/questions/27695749/gmail-api-not-respecting-utf-encoding-in-subject
+func decodeSubject(encoded string) string {
+	if !strings.HasPrefix(encoded, "=?UTF-8?q?") {
+		// not UTF-8 encoded
+		return encoded
+	}
+
+	// If the subject is too long, `git format-patch` may produce a subject line across
+	// multiple lines. When parsed, this can look like the following:
+	// <UTF8-prefix><first-line> <UTF8-prefix><second-line>
+	payload := " " + encoded
+	payload = strings.ReplaceAll(payload, " =?UTF-8?q?", "")
+	payload = strings.ReplaceAll(payload, "?=", "")
+
+	decoded, err := io.ReadAll(quotedprintable.NewReader(strings.NewReader(payload)))
+	if err != nil {
+		// if err, abort decoding and return original subject
+		return encoded
+	}
+
+	return string(decoded)
 }
