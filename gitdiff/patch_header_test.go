@@ -139,7 +139,7 @@ func TestParsePatchHeader(t *testing.T) {
 	expectedDate := time.Date(2020, 04, 11, 15, 21, 23, 0, time.FixedZone("PDT", -7*60*60))
 	expectedTitle := "A sample commit to test header parsing"
 	expectedEmojiOneLineTitle := "🤖 Enabling auto-merging"
-	expectedEmojiMultiLineTitle := "🤖 Enabling auto-merging of certain PRs"
+	expectedEmojiMultiLineTitle := "[IA64] Put ia64 config files on the Uwe Kleine-König diet"
 	expectedBody := "The medium format shows the body, which\nmay wrap on to multiple lines.\n\nAnother body line."
 	expectedBodyAppendix := "CC: Joe Smith <joe.smith@company.com>"
 
@@ -292,8 +292,8 @@ Another body line.
 			Input: `From 61f5cd90bed4d204ee3feb3aa41ee91d4734855b Mon Sep 17 00:00:00 2001
 From: Morton Haypenny <mhaypenny@example.com>
 Date: Sat, 11 Apr 2020 15:21:23 -0700
-Subject: [PATCH] =?UTF-8?q?=F0=9F=A4=96=20Enabling=20auto-merging=20of=20c?=
- =?UTF-8?q?ertain=20PRs?=
+Subject: [PATCH] =?UTF-8?q?[IA64]=20Put=20ia64=20config=20files=20on=20the=20?=
+ =?UTF-8?q?Uwe=20Kleine-K=C3=B6nig=20diet?=
 
 The medium format shows the body, which
 may wrap on to multiple lines.
