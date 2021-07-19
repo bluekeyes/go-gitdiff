@@ -467,25 +467,34 @@ func decodeUTF8Subject(encoded string) string {
 		return encoded
 	}
 
-	payload := strings.TrimPrefix(encoded, "=?UTF-8?q?")
-	payload = strings.TrimSuffix(payload, "?=")
+	// If the subject is too long, `git format-patch` maty produce a subject line across
+	// multiple lines. This will lead to the next line starting with <space><UTF-prefix>
+	// Adding the space to the beginning of `encoded` ensures the replace catches all
+	// instances, including the first line.
+	payload := strings.ReplaceAll(" "+encoded, " =?UTF-8?q?", "")
+	payload = strings.ReplaceAll(payload, "?=", "")
 
 	at := 0
-	subject := ""
+	var subject []byte
 
 	for at < len(payload) {
 		if payload[at] == '=' {
 			// detected a hex value
-			hexx := payload[at+1 : at+3]
-			hexbytes, _ := hex.DecodeString(hexx)
-			subject += string(hexbytes)
+			hexString := payload[at+1 : at+3]
+			hexByte, err := hex.DecodeString(hexString)
+			if err != nil {
+				// if err, abort decoding and return original subject
+				return encoded
+			}
+
+			subject = append(subject, hexByte...)
 			at += 3
 
 		} else {
-			subject += string(payload[at])
+			subject = append(subject, payload[at])
 			at++
 		}
 	}
 
-	return subject
+	return string(subject)
 }

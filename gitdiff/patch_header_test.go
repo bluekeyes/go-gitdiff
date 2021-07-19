@@ -139,6 +139,7 @@ func TestParsePatchHeader(t *testing.T) {
 	expectedDate := time.Date(2020, 04, 11, 15, 21, 23, 0, time.FixedZone("PDT", -7*60*60))
 	expectedTitle := "A sample commit to test header parsing"
 	expectedEmojiOneLineTitle := "🤖 Enabling auto-merging"
+	expectedEmojiMultiLineTitle := "🤖 Enabling auto-merging of certain PRs"
 	expectedBody := "The medium format shows the body, which\nmay wrap on to multiple lines.\n\nAnother body line."
 	expectedBodyAppendix := "CC: Joe Smith <joe.smith@company.com>"
 
@@ -284,6 +285,26 @@ Another body line.
 				Author:     expectedIdentity,
 				AuthorDate: expectedDate,
 				Title:      expectedEmojiOneLineTitle,
+				Body:       expectedBody,
+			},
+		},
+		"mailboxEmojiMultiLine": {
+			Input: `From 61f5cd90bed4d204ee3feb3aa41ee91d4734855b Mon Sep 17 00:00:00 2001
+From: Morton Haypenny <mhaypenny@example.com>
+Date: Sat, 11 Apr 2020 15:21:23 -0700
+Subject: [PATCH] =?UTF-8?q?=F0=9F=A4=96=20Enabling=20auto-merging=20of=20c?=
+ =?UTF-8?q?ertain=20PRs?=
+
+The medium format shows the body, which
+may wrap on to multiple lines.
+
+Another body line.
+`,
+			Header: PatchHeader{
+				SHA:        expectedSHA,
+				Author:     expectedIdentity,
+				AuthorDate: expectedDate,
+				Title:      expectedEmojiMultiLineTitle,
 				Body:       expectedBody,
 			},
 		},
