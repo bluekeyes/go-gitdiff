@@ -2,10 +2,10 @@ package gitdiff
 
 import (
 	"bufio"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"mime/quotedprintable"
 	"net/mail"
 	"strconv"
 	"strings"
@@ -461,8 +461,9 @@ func parseSubject(s string) (string, string) {
 	return s[:at], decodeUTF8Subject(s[at:])
 }
 
-// Decodes a subject line if encoded using quoted-printable UTF-8 encoding. See for reference:
-// https://stackoverflow.com/questions/27695749/gmail-api-not-respecting-utf-encoding-in-subject
+// Decodes a subject line if encoded using quoted-printable UTF-8 Q encoding. This format is the
+// result of a `git format-patch` when the commit title has an emoji (or other non-ASCII character).
+// See for reference: https://stackoverflow.com/questions/27695749/gmail-api-not-respecting-utf-encoding-in-subject
 func decodeUTF8Subject(encoded string) string {
 	if !strings.HasPrefix(encoded, "=?UTF-8?q?") {
 		// not UTF-8 encoded
@@ -472,30 +473,15 @@ func decodeUTF8Subject(encoded string) string {
 	// If the subject is too long, `git format-patch` may produce a subject line across
 	// multiple lines. When parsed, this can look like the following:
 	// <UTF8-prefix><first-line> <UTF8-prefix><second-line>
-	payload := strings.ReplaceAll(" "+encoded, " =?UTF-8?q?", "")
+	payload := " " + encoded
+	payload = strings.ReplaceAll(payload, " =?UTF-8?q?", "")
 	payload = strings.ReplaceAll(payload, "?=", "")
 
-	at := 0
-	var subject []byte
-
-	for at < len(payload) {
-		if payload[at] == '=' {
-			// detected a hex value that needs decoding
-			hexString := payload[at+1 : at+3]
-			hexByte, err := hex.DecodeString(hexString)
-			if err != nil {
-				// if err, abort decoding and return original subject
-				return encoded
-			}
-
-			subject = append(subject, hexByte...)
-			at += 3
-
-		} else {
-			subject = append(subject, payload[at])
-			at++
-		}
+	decoded, err := io.ReadAll(quotedprintable.NewReader(strings.NewReader(payload)))
+	if err != nil {
+		// if err, abort decoding and return original subject
+		return encoded
 	}
 
-	return string(subject)
+	return string(decoded)
 }
