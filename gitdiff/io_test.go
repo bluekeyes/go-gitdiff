@@ -120,18 +120,18 @@ func TestLineReaderAt(t *testing.T) {
 		})
 	}
 
-	incompleteTests := map[string]struct {
+	newlineTests := map[string]struct {
 		InputSize int
 	}{
-		"readLinesIncomplete": {
+		"readLinesNoFinalNewline": {
 			InputSize: indexBufferSize + indexBufferSize/2,
 		},
-		"readLinesIncompleteBufferMultiple": {
-			InputSize: indexBufferSize,
+		"readLinesNoFinalNewlineBufferMultiple": {
+			InputSize: 4 * indexBufferSize,
 		},
 	}
 
-	for name, test := range incompleteTests {
+	for name, test := range newlineTests {
 		t.Run(name, func(t *testing.T) {
 			input := bytes.Repeat([]byte("0"), test.InputSize)
 
