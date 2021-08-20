@@ -9,6 +9,8 @@ import (
 )
 
 func TestLineReaderAt(t *testing.T) {
+	const lineTemplate = "generated test line %d\n"
+
 	tests := map[string]struct {
 		InputLines int
 		Offset     int64
@@ -42,6 +44,11 @@ func TestLineReaderAt(t *testing.T) {
 			Offset:     2,
 			Count:      0,
 		},
+		"readAllLines": {
+			InputLines: 64,
+			Offset:     0,
+			Count:      64,
+		},
 		"readThroughEOF": {
 			InputLines: 16,
 			Offset:     12,
@@ -70,8 +77,6 @@ func TestLineReaderAt(t *testing.T) {
 			Err:        true,
 		},
 	}
-
-	const lineTemplate = "generated test line %d\n"
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -110,6 +115,53 @@ func TestLineReaderAt(t *testing.T) {
 			for i := 0; i < n; i++ {
 				if !bytes.Equal(output[i], lines[i]) {
 					t.Errorf("incorrect content in line %d:\nexpected: %q\nactual: %q", i, output[i], lines[i])
+				}
+			}
+		})
+	}
+
+	newlineTests := map[string]struct {
+		InputSize int
+	}{
+		"readLinesNoFinalNewline": {
+			InputSize: indexBufferSize + indexBufferSize/2,
+		},
+		"readLinesNoFinalNewlineBufferMultiple": {
+			InputSize: 4 * indexBufferSize,
+		},
+	}
+
+	for name, test := range newlineTests {
+		t.Run(name, func(t *testing.T) {
+			input := bytes.Repeat([]byte("0"), test.InputSize)
+
+			var output [][]byte
+			for i := 0; i < len(input); i++ {
+				last := i
+				i += rand.Intn(80)
+				if i < len(input)-1 { // last character of input must not be a newline
+					input[i] = '\n'
+					output = append(output, input[last:i+1])
+				} else {
+					output = append(output, input[last:])
+				}
+			}
+
+			r := &lineReaderAt{r: bytes.NewReader(input)}
+			lines := make([][]byte, len(output))
+
+			n, err := r.ReadLinesAt(lines, 0)
+			if err != nil {
+				t.Fatalf("unexpected error reading reading lines: %v", err)
+			}
+
+			if n != len(output) {
+				t.Fatalf("incorrect number of lines read: expected %d, actual %d", len(output), n)
+			}
+
+			for i, line := range lines {
+				if !bytes.Equal(output[i], line) {
+					t.Errorf("incorrect content in line %d:\nexpected: %q\nactual: %q", i, output[i], line)
 				}
 			}
 		})
