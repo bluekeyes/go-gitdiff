@@ -527,7 +527,7 @@ func hasEpochTimestamp(s string) bool {
 
 	// a valid timestamp can have optional ':' in zone specifier
 	// remove that if it exists so we have a single format
-	if ts[len(ts)-3] == ':' {
+	if len(ts) >= 3 && ts[len(ts)-3] == ':' {
 		ts = ts[:len(ts)-3] + ts[len(ts)-2:]
 	}
 

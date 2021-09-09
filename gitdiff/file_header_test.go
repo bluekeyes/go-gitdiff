@@ -724,6 +724,14 @@ func TestHasEpochTimestamp(t *testing.T) {
 			Input:  "+++ file.txt\t2019-03-21 12:34:56.789 -0700\n",
 			Output: false,
 		},
+		"notTimestamp": {
+			Input:  "+++ file.txt\trandom text\n",
+			Output: false,
+		},
+		"notTimestampShort": {
+			Input:  "+++ file.txt\t0\n",
+			Output: false,
+		},
 	}
 
 	for name, test := range tests {
