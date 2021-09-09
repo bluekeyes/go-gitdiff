@@ -724,11 +724,11 @@ func TestHasEpochTimestamp(t *testing.T) {
 			Input:  "+++ file.txt\t2019-03-21 12:34:56.789 -0700\n",
 			Output: false,
 		},
-		"notTimstamp": {
+		"notTimestamp": {
 			Input:  "+++ file.txt\trandom text\n",
 			Output: false,
 		},
-		"notTimstampShort": {
+		"notTimestampShort": {
 			Input:  "+++ file.txt\t0\n",
 			Output: false,
 		},
