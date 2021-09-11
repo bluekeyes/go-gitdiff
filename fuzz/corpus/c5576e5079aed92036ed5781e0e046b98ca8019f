@@ -1,0 +1,48 @@
+f55ff3dcbe
+ample.com>
+2019 -0700
+
+fragments.
+
+arbitrary.
+
+diff --git a/dir/file1.txt b/dir/file1.txt
+index ..03e1d 100644
+--- a/dir/file1.txt
++++ b/dir/file1.txt
+@@ -3,6 +3,8 @@ 1
+ 
+-
+-
+ 
++
++
++
+ 
+-
++
++
+@@ -31,2 +33,2 @@ 2
+ 
+-
++
+diff --git a/dir/file2.txt b/dir/file2.txt
+index ..14b7f 100644
+--- a/dir/file2.txt
++++ b/dir/file2.txt
+@@ -3,6 +3,8 @@ 1
+ 
+-
+-
+ 
++
++
++
+ 
+-
++
++
+@@ -31,2 +33,2 @@ 2
+ 
+-
++

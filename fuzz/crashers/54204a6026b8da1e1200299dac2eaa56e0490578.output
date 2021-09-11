@@ -1,0 +1,16 @@
+panic: runtime error: index out of range [-1]
+
+goroutine 1 [running]:
+github.com/bluekeyes/go-gitdiff/gitdiff.(*parser).ParseTextChunk(0xc00006c050, 0xc00007a000)
+	/home/bkeyes/code/go-gitdiff/gitdiff/text.go:119 +0xb95
+github.com/bluekeyes/go-gitdiff/gitdiff.(*parser).ParseTextFragments(0x0, 0xc000078000)
+	/home/bkeyes/code/go-gitdiff/gitdiff/text.go:30 +0x1c6
+github.com/bluekeyes/go-gitdiff/gitdiff.Parse({0x510660, 0xc000094570})
+	/home/bkeyes/code/go-gitdiff/gitdiff/parser.go:40 +0x5a8
+github.com/bluekeyes/go-gitdiff/gitdiff.Fuzz({0x7f18e05cd000, 0x24, 0x24})
+	/home/bkeyes/code/go-gitdiff/gitdiff/fuzz.go:11 +0xb8
+go-fuzz-dep.Main({0xc0000c9f68, 0x1, 0x4d8020})
+	go-fuzz-dep/main.go:36 +0x15b
+main.main()
+	github.com/bluekeyes/go-gitdiff/gitdiff/go.fuzz.main/main.go:15 +0x3b
+exit status 2

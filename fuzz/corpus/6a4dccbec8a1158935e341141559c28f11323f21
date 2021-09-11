@@ -1,0 +1,12 @@
+diff --git a/gitdiff/testdata/apply/text_fragment_error.src b/gitdiff/testdata/apply/text_fragment_error.src
+--- a/gitdiff/testdata/apply/text_fragment_error.src
++++ b/gitdiff/testdata/apply/text_fragment_error.src
+@@ -9,7 +9,7 @@ 8
+ 
+ 
+ 
+-
++
+ 
+ 
+ 

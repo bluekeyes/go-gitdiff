@@ -1,0 +1,7 @@
+panic: runtime error: index out of range [-1]
+github.com/bluekeyes/go-gitdiff/gitdiff.(*parser).ParseTextChunk
+github.com/bluekeyes/go-gitdiff/gitdiff.(*parser).ParseTextFragments
+github.com/bluekeyes/go-gitdiff/gitdiff.Parse
+github.com/bluekeyes/go-gitdiff/gitdiff.Fuzz
+go-fuzz-dep.Main
+main.main

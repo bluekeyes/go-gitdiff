@@ -1,0 +1,45 @@
+program hanged (timeout 10 seconds)
+
+SIGABRT: abort
+PC=0x45ef7d m=2 sigcode=0
+
+goroutine 0 [idle]:
+runtime.usleep()
+	runtime/sys_linux_amd64.s:146 +0x3d
+runtime.sysmon()
+	runtime/proc.go:5337 +0xb1
+runtime.mstart1()
+	runtime/proc.go:1407 +0x93
+runtime.mstart0()
+	runtime/proc.go:1365 +0x79
+runtime.mstart()
+	runtime/asm_amd64.s:248 +0x5
+
+goroutine 1 [runnable]:
+go-fuzz-dep.Main({0xc000049f68, 0x1, 0x4d8020})
+	go-fuzz-dep/main.go:32 +0x258
+main.main()
+	github.com/bluekeyes/go-gitdiff/gitdiff/go.fuzz.main/main.go:15 +0x3b
+
+rax    0x0
+rbx    0x14
+rcx    0x45ef7d
+rdx    0x0
+rdi    0x7fa497b96db8
+rsi    0x0
+rbp    0x7fa497b96dc8
+rsp    0x7fa497b96db8
+r8     0x2101
+r9     0x7ffff4cab090
+r10    0x0
+r11    0x202
+r12    0x7fa497b967f8
+r13    0x7ffff4ca574f
+r14    0xc0000009c0
+r15    0x7fa497b96fc0
+rip    0x45ef7d
+rflags 0x202
+cs     0x33
+fs     0x0
+gs     0x0
+exit status 2

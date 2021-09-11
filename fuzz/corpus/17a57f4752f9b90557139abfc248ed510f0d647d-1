@@ -1,0 +1,39 @@
+
+
+
+
+
+
+
+
+
+diff --git /dir/file1.txt /dir/file1.txt
+
+--- t
++++ .
+@@ -3,6 +3,8 @@
+
+-
+-
+
++
++
++
+
+
++
+diff --git /dir/file2.txt /dir/file2.txt
+
+--- t
++++ .
+@@ -3,6 +3,8 @@
+
+-
+-
+
++
++
++
+
+
++
