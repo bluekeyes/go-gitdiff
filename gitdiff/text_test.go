@@ -317,6 +317,24 @@ func TestParseTextChunk(t *testing.T) {
 			},
 			Err: true,
 		},
+		"onlyContext": {
+			Input: ` context line
+ context line
+`,
+			Fragment: TextFragment{
+				OldLines: 2,
+				NewLines: 2,
+			},
+			Err: true,
+		},
+		"unexpectedNoNewlineMarker": {
+			Input: `\ No newline at end of file`,
+			Fragment: TextFragment{
+				OldLines: 1,
+				NewLines: 1,
+			},
+			Err: true,
+		},
 	}
 
 	for name, test := range tests {
