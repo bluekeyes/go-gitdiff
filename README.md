@@ -44,6 +44,9 @@ library is used in a production application that parses and applies thousands of
 patches every day, but the space of all possible patches is large, so there are
 likely undiscovered bugs.
 
+The parsing code has also had a modest amount of fuzz testing. I hope to continue
+this testing in the future.
+
 ## Why another git/unified diff parser?
 
 [Several][sourcegraph] [packages][sergi] with [similar][waigani]
