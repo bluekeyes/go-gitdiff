@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime/quotedprintable"
 	"net/mail"
 	"strconv"
@@ -477,7 +478,7 @@ func decodeSubject(encoded string) string {
 	payload = strings.ReplaceAll(payload, " =?UTF-8?q?", "")
 	payload = strings.ReplaceAll(payload, "?=", "")
 
-	decoded, err := io.ReadAll(quotedprintable.NewReader(strings.NewReader(payload)))
+	decoded, err := ioutil.ReadAll(quotedprintable.NewReader(strings.NewReader(payload)))
 	if err != nil {
 		// if err, abort decoding and return original subject
 		return encoded
