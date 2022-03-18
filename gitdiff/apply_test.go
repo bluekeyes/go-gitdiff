@@ -9,69 +9,6 @@ import (
 	"testing"
 )
 
-func TestApplierInvariants(t *testing.T) {
-	binary := &BinaryFragment{
-		Method: BinaryPatchLiteral,
-		Size:   2,
-		Data:   []byte("\xbe\xef"),
-	}
-
-	text := &TextFragment{
-		NewPosition: 1,
-		NewLines:    1,
-		LinesAdded:  1,
-		Lines: []Line{
-			{Op: OpAdd, Line: "new line\n"},
-		},
-	}
-
-	file := &File{
-		TextFragments: []*TextFragment{text},
-	}
-
-	src := bytes.NewReader(nil)
-	dst := ioutil.Discard
-
-	assertInProgress := func(t *testing.T, kind string, err error) {
-		if !errors.Is(err, errApplyInProgress) {
-			t.Fatalf("expected in-progress error for %s apply, but got: %v", kind, err)
-		}
-	}
-
-	t.Run("binaryFirst", func(t *testing.T) {
-		a := NewApplier(src)
-		if err := a.ApplyBinaryFragment(dst, binary); err != nil {
-			t.Fatalf("unexpected error applying fragment: %v", err)
-		}
-		assertInProgress(t, "text", a.ApplyTextFragment(dst, text))
-		assertInProgress(t, "binary", a.ApplyBinaryFragment(dst, binary))
-		assertInProgress(t, "file", a.ApplyFile(dst, file))
-	})
-
-	t.Run("textFirst", func(t *testing.T) {
-		a := NewApplier(src)
-		if err := a.ApplyTextFragment(dst, text); err != nil {
-			t.Fatalf("unexpected error applying fragment: %v", err)
-		}
-		// additional text fragments are allowed
-		if err := a.ApplyTextFragment(dst, text); err != nil {
-			t.Fatalf("unexpected error applying second fragment: %v", err)
-		}
-		assertInProgress(t, "binary", a.ApplyBinaryFragment(dst, binary))
-		assertInProgress(t, "file", a.ApplyFile(dst, file))
-	})
-
-	t.Run("fileFirst", func(t *testing.T) {
-		a := NewApplier(src)
-		if err := a.ApplyFile(dst, file); err != nil {
-			t.Fatalf("unexpected error applying file: %v", err)
-		}
-		assertInProgress(t, "text", a.ApplyTextFragment(dst, text))
-		assertInProgress(t, "binary", a.ApplyBinaryFragment(dst, binary))
-		assertInProgress(t, "file", a.ApplyFile(dst, file))
-	})
-}
-
 func TestApplyTextFragment(t *testing.T) {
 	tests := map[string]applyTest{
 		"createFile": {Files: getApplyFiles("text_fragment_new")},
@@ -127,11 +64,12 @@ func TestApplyTextFragment(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			test.run(t, func(w io.Writer, applier *Applier, file *File) error {
+			test.run(t, func(dst io.Writer, src io.ReaderAt, file *File) error {
 				if len(file.TextFragments) != 1 {
 					t.Fatalf("patch should contain exactly one fragment, but it has %d", len(file.TextFragments))
 				}
-				return applier.ApplyTextFragment(w, file.TextFragments[0])
+				applier := NewTextApplier(dst, src)
+				return applier.ApplyFragment(file.TextFragments[0])
 			})
 		})
 	}
@@ -176,8 +114,9 @@ func TestApplyBinaryFragment(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			test.run(t, func(w io.Writer, applier *Applier, file *File) error {
-				return applier.ApplyBinaryFragment(w, file.BinaryFragment)
+			test.run(t, func(dst io.Writer, src io.ReaderAt, file *File) error {
+				applier := NewBinaryApplier(dst, src)
+				return applier.ApplyFragment(file.BinaryFragment)
 			})
 		})
 	}
@@ -216,8 +155,8 @@ func TestApplyFile(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			test.run(t, func(w io.Writer, applier *Applier, file *File) error {
-				return applier.ApplyFile(w, file)
+			test.run(t, func(dst io.Writer, src io.ReaderAt, file *File) error {
+				return Apply(dst, src, file)
 			})
 		})
 	}
@@ -228,7 +167,7 @@ type applyTest struct {
 	Err   interface{}
 }
 
-func (at applyTest) run(t *testing.T, apply func(io.Writer, *Applier, *File) error) {
+func (at applyTest) run(t *testing.T, apply func(io.Writer, io.ReaderAt, *File) error) {
 	src, patch, out := at.Files.Load(t)
 
 	files, _, err := Parse(bytes.NewReader(patch))
@@ -239,10 +178,8 @@ func (at applyTest) run(t *testing.T, apply func(io.Writer, *Applier, *File) err
 		t.Fatalf("patch should contain exactly one file, but it has %d", len(files))
 	}
 
-	applier := NewApplier(bytes.NewReader(src))
-
 	var dst bytes.Buffer
-	err = apply(&dst, applier, files[0])
+	err = apply(&dst, bytes.NewReader(src), files[0])
 	if at.Err != nil {
 		assertError(t, at.Err, err, "applying fragment")
 		return
