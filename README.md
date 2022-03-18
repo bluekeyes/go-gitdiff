@@ -36,16 +36,18 @@ if err := gitdiff.NewApplier(code).ApplyFile(&output, files[0]); err != nil {
 
 ## Development Status
 
-Mostly complete. API changes are possible, particularly for patch application,
-but I expect the parsing interface and types to remain stable.
+The parsing API and types are complete and I expect will remain stable. As of
+March 2022, I am refactoring the apply API to address existing issues and to
+support non-strict application. Version 0.6.1 is the last release using the old
+API and the `master` branch may contain breaking changes. Please use a release
+version to avoid surprises.
 
-Patch parsing and strict application are well-covered by unit tests and the
-library is used in a production application that parses and applies thousands of
-patches every day, but the space of all possible patches is large, so there are
-likely undiscovered bugs.
+Parsing and strict application are well-covered by unit tests and the library
+is used in a production application that parses and applies thousands of
+patches every day. However, the space of all possible patches is large, so
+there are likely undiscovered bugs.
 
-The parsing code has also had a modest amount of fuzz testing. I hope to continue
-this testing in the future.
+The parsing code has also had a modest amount of fuzz testing.
 
 ## Why another git/unified diff parser?
 
