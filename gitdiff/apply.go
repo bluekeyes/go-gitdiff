@@ -95,10 +95,9 @@ var (
 // Apply applies the changes in f to src, writing the result to dst. It can
 // apply both text and binary changes.
 //
-// If an error occurs while applying, Apply returns an instance of *ApplyError
-// that annotates the wrapped error with additional information when available.
-// If the error is because of a conflict with the source, the wrapped error
-// will be a *Conflict.
+// If an error occurs while applying, Apply returns an *ApplyError that
+// annotates the error with additional information. If the error is because of
+// a conflict with the source, the wrapped error will be a *Conflict.
 func Apply(dst io.Writer, src io.ReaderAt, f *File) error {
 	if f.IsBinary {
 		if len(f.TextFragments) > 0 {

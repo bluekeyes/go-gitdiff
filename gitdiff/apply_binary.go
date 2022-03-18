@@ -63,7 +63,7 @@ func (a *BinaryApplier) ApplyFragment(f *BinaryFragment) error {
 }
 
 // Close writes any data following the last applied fragment and prevents
-// future applies using the applier.
+// future calls to ApplyFragment.
 func (a *BinaryApplier) Close() (err error) {
 	if a.closed {
 		return nil

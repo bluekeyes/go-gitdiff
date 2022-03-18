@@ -137,7 +137,7 @@ func applyTextLine(dst io.Writer, line Line, preimage [][]byte, i int64) (err er
 }
 
 // Close writes any data following the last applied fragment and prevents
-// future applies using the applier.
+// future calls to ApplyFragment.
 func (a *TextApplier) Close() (err error) {
 	if a.closed {
 		return nil
