@@ -29,7 +29,7 @@ if err != nil {
 
 // apply the changes in the patch to a source file
 var output bytes.Buffer
-if err := gitdiff.NewApplier(code).ApplyFile(&output, files[0]); err != nil {
+if err := gitdiff.Apply(&output, code, files[0]); err != nil {
     log.Fatal(err)
 }
 ```
