@@ -10,7 +10,6 @@ import (
 //
 // By default, TextApplier operates in "strict" mode, where fragment content
 // and positions must exactly match those of the source.
-//
 type TextApplier struct {
 	dst      io.Writer
 	src      io.ReaderAt

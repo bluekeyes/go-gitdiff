@@ -115,7 +115,7 @@ func applyBinaryDeltaFragment(dst io.Writer, src io.ReaderAt, frag []byte) error
 // readBinaryDeltaSize reads a variable length size from a delta-encoded binary
 // fragment, returing the size and the unused data. Data is encoded as:
 //
-//    [[1xxxxxxx]...] [0xxxxxxx]
+//	[[1xxxxxxx]...] [0xxxxxxx]
 //
 // in little-endian order, with 7 bits of the value per byte.
 func readBinaryDeltaSize(d []byte) (size int64, rest []byte) {
@@ -134,7 +134,7 @@ func readBinaryDeltaSize(d []byte) (size int64, rest []byte) {
 // fragment, returning the amount of data written and the usused part of the
 // fragment. An add operation takes the form:
 //
-//     [0xxxxxx][[data1]...]
+//	[0xxxxxx][[data1]...]
 //
 // where the lower seven bits of the opcode is the number of data bytes
 // following the opcode. See also pack-format.txt in the Git source.
@@ -151,7 +151,7 @@ func applyBinaryDeltaAdd(w io.Writer, op byte, delta []byte) (n int64, rest []by
 // fragment, returing the amount of data written and the unused part of the
 // fragment. A copy operation takes the form:
 //
-//     [1xxxxxxx][offset1][offset2][offset3][offset4][size1][size2][size3]
+//	[1xxxxxxx][offset1][offset2][offset3][offset4][size1][size2][size3]
 //
 // where the lower seven bits of the opcode determine which non-zero offset and
 // size bytes are present in little-endian order: if bit 0 is set, offset1 is

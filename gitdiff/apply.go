@@ -13,10 +13,9 @@ import (
 // Users can test if an error was caused by a conflict by using errors.Is with
 // an empty Conflict:
 //
-//     if errors.Is(err, &Conflict{}) {
-//	       // handle conflict
-//     }
-//
+//	    if errors.Is(err, &Conflict{}) {
+//		       // handle conflict
+//	    }
 type Conflict struct {
 	msg string
 }
