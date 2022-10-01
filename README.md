@@ -36,11 +36,9 @@ if err := gitdiff.Apply(&output, code, files[0]); err != nil {
 
 ## Development Status
 
-The parsing API and types are complete and I expect will remain stable. As of
-March 2022, I am refactoring the apply API to address existing issues and to
-support non-strict application. Version 0.6.1 is the last release using the old
-API and the `master` branch may contain breaking changes. Please use a release
-version to avoid surprises.
+The parsing API and types are complete and I expect will remain stable. Version
+0.7.0 introduced a new apply API that may change more in the future to support
+non-strict patch application.
 
 Parsing and strict application are well-covered by unit tests and the library
 is used in a production application that parses and applies thousands of
