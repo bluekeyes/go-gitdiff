@@ -101,3 +101,7 @@ The parsing code has also had a modest amount of fuzz testing.
    context of each fragment must exactly match the source file; `git apply`
    implements a search algorithm that tries different lines and amounts of
    context, with further options to normalize or ignore whitespace changes.
+
+7. When parsing mail-formatted patch headers, leading and trailing whitespace
+   is always removed from `Subject` lines. There is no exact equivalent to `git
+   mailinfo -k`.

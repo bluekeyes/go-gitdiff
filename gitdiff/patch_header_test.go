@@ -144,9 +144,10 @@ func TestParsePatchHeader(t *testing.T) {
 	expectedBodyAppendix := "CC: Joe Smith <joe.smith@company.com>"
 
 	tests := map[string]struct {
-		Input  string
-		Header PatchHeader
-		Err    interface{}
+		Input   string
+		Options []PatchHeaderOption
+		Header  PatchHeader
+		Err     interface{}
 	}{
 		"prettyShort": {
 			Input: `commit 61f5cd90bed4d204ee3feb3aa41ee91d4734855b
@@ -266,6 +267,28 @@ Another body line.
 				Author:     expectedIdentity,
 				AuthorDate: expectedDate,
 				Title:      expectedTitle,
+				Body:       expectedBody,
+			},
+		},
+		"mailboxPatchOnly": {
+			Input: `From 61f5cd90bed4d204ee3feb3aa41ee91d4734855b Mon Sep 17 00:00:00 2001
+From: Morton Haypenny <mhaypenny@example.com>
+Date: Sat, 11 Apr 2020 15:21:23 -0700
+Subject: [PATCH] [BUG-123] A sample commit to test header parsing
+
+The medium format shows the body, which
+may wrap on to multiple lines.
+
+Another body line.
+`,
+			Options: []PatchHeaderOption{
+				WithSubjectCleanMode(SubjectCleanPatchOnly),
+			},
+			Header: PatchHeader{
+				SHA:        expectedSHA,
+				Author:     expectedIdentity,
+				AuthorDate: expectedDate,
+				Title:      "[BUG-123] " + expectedTitle,
 				Body:       expectedBody,
 			},
 		},
@@ -414,7 +437,7 @@ Author: Morton Haypenny <mhaypenny@example.com>
 				Title:  expectedTitle,
 			},
 		},
-		"empty": {
+		"emptyHeader": {
 			Input:  "",
 			Header: PatchHeader{},
 		},
@@ -422,7 +445,7 @@ Author: Morton Haypenny <mhaypenny@example.com>
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			h, err := ParsePatchHeader(test.Input)
+			h, err := ParsePatchHeader(test.Input, test.Options...)
 			if test.Err != nil {
 				assertError(t, test.Err, err, "parsing patch header")
 				return
@@ -477,50 +500,128 @@ func assertPatchIdentity(t *testing.T, kind string, exp, act *PatchIdentity) {
 	}
 }
 
-func TestCleanupSubject(t *testing.T) {
-	exp := "A sample commit to test header parsing"
-	tests := map[string]string{
-		"plain":        "",
-		"patch":        "[PATCH] ",
-		"patchv5":      "[PATCH v5] ",
-		"patchrfc":     "[PATCH RFC] ",
-		"patchnospace": "[PATCH]",
-		"space":        "   ",
-		"re":           "re: ",
-		"Re":           "Re: ",
-		"RE":           "rE: ",
-		"rere":         "re: re: ",
-	}
+func TestCleanSubject(t *testing.T) {
+	expectedSubject := "A sample commit to test header parsing"
 
-	for name, prefix := range tests {
-		gotprefix, gottitle := parseSubject(prefix + exp)
-		if gottitle != exp {
-			t.Errorf("%s: Incorrect parsing of prefix %s: got title %s, wanted %s",
-				name, prefix, gottitle, exp)
-		}
-		if gotprefix != prefix {
-			t.Errorf("%s: Incorrect parsing of prefix %s: got prefix %s",
-				name, prefix, gotprefix)
-		}
-	}
-
-	moretests := map[string]struct {
-		in, eprefix, etitle string
+	tests := map[string]struct {
+		Input   string
+		Mode    SubjectCleanMode
+		Prefix  string
+		Subject string
 	}{
-		"Reimplement":       {"Reimplement something", "", "Reimplement something"},
-		"patch-reimplement": {"[PATCH v5] Reimplement something", "[PATCH v5] ", "Reimplement something"},
-		"Openbracket":       {"[Just to annoy people", "", "[Just to annoy people"},
+		"CleanAll/noPrefix": {
+			Input:   expectedSubject,
+			Mode:    SubjectCleanAll,
+			Subject: expectedSubject,
+		},
+		"CleanAll/patchPrefix": {
+			Input:   "[PATCH] " + expectedSubject,
+			Mode:    SubjectCleanAll,
+			Prefix:  "[PATCH] ",
+			Subject: expectedSubject,
+		},
+		"CleanAll/patchPrefixNoSpace": {
+			Input:   "[PATCH]" + expectedSubject,
+			Mode:    SubjectCleanAll,
+			Prefix:  "[PATCH]",
+			Subject: expectedSubject,
+		},
+		"CleanAll/patchPrefixContent": {
+			Input:   "[PATCH 3/7] " + expectedSubject,
+			Mode:    SubjectCleanAll,
+			Prefix:  "[PATCH 3/7] ",
+			Subject: expectedSubject,
+		},
+		"CleanAll/spacePrefix": {
+			Input:   "   " + expectedSubject,
+			Mode:    SubjectCleanAll,
+			Subject: expectedSubject,
+		},
+		"CleanAll/replyLowerPrefix": {
+			Input:   "re: " + expectedSubject,
+			Mode:    SubjectCleanAll,
+			Prefix:  "re: ",
+			Subject: expectedSubject,
+		},
+		"CleanAll/replyMixedPrefix": {
+			Input:   "Re: " + expectedSubject,
+			Mode:    SubjectCleanAll,
+			Prefix:  "Re: ",
+			Subject: expectedSubject,
+		},
+		"CleanAll/replyCapsPrefix": {
+			Input:   "RE: " + expectedSubject,
+			Mode:    SubjectCleanAll,
+			Prefix:  "RE: ",
+			Subject: expectedSubject,
+		},
+		"CleanAll/replyDoublePrefix": {
+			Input:   "Re: re: " + expectedSubject,
+			Mode:    SubjectCleanAll,
+			Prefix:  "Re: re: ",
+			Subject: expectedSubject,
+		},
+		"CleanAll/noPrefixSubjectHasRe": {
+			Input:   "Reimplement parsing",
+			Mode:    SubjectCleanAll,
+			Subject: "Reimplement parsing",
+		},
+		"CleanAll/patchPrefixSubjectHasRe": {
+			Input:   "[PATCH 1/2] Reimplement parsing",
+			Mode:    SubjectCleanAll,
+			Prefix:  "[PATCH 1/2] ",
+			Subject: "Reimplement parsing",
+		},
+		"CleanAll/unclosedPrefix": {
+			Input:   "[Just to annoy people",
+			Mode:    SubjectCleanAll,
+			Subject: "[Just to annoy people",
+		},
+		"CleanAll/multiplePrefix": {
+			Input:   " Re:Re: [PATCH 1/2][DRAFT] " + expectedSubject + "  ",
+			Mode:    SubjectCleanAll,
+			Prefix:  "Re:Re: [PATCH 1/2][DRAFT] ",
+			Subject: expectedSubject,
+		},
+		"CleanPatchOnly/patchPrefix": {
+			Input:   "[PATCH] " + expectedSubject,
+			Mode:    SubjectCleanPatchOnly,
+			Prefix:  "[PATCH] ",
+			Subject: expectedSubject,
+		},
+		"CleanPatchOnly/mixedPrefix": {
+			Input:   "[PATCH] [TICKET-123] " + expectedSubject,
+			Mode:    SubjectCleanPatchOnly,
+			Prefix:  "[PATCH] ",
+			Subject: "[TICKET-123] " + expectedSubject,
+		},
+		"CleanPatchOnly/multiplePrefix": {
+			Input:   "Re:Re: [PATCH 1/2][DRAFT] " + expectedSubject,
+			Mode:    SubjectCleanPatchOnly,
+			Prefix:  "Re:Re: [PATCH 1/2]",
+			Subject: "[DRAFT] " + expectedSubject,
+		},
+		"CleanWhitespace/leadingSpace": {
+			Input:   "    [PATCH] " + expectedSubject,
+			Mode:    SubjectCleanWhitespace,
+			Subject: "[PATCH] " + expectedSubject,
+		},
+		"CleanWhitespace/trailingSpace": {
+			Input:   "[PATCH] " + expectedSubject + "   ",
+			Mode:    SubjectCleanWhitespace,
+			Subject: "[PATCH] " + expectedSubject,
+		},
 	}
 
-	for name, test := range moretests {
-		prefix, title := parseSubject(test.in)
-		if title != test.etitle {
-			t.Errorf("%s: Incorrect parsing of %s: got title %s, wanted %s",
-				name, test.in, title, test.etitle)
-		}
-		if prefix != test.eprefix {
-			t.Errorf("%s: Incorrect parsing of %s: got prefix %s, wanted %s",
-				name, test.in, title, test.etitle)
-		}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			prefix, subject := cleanSubject(test.Input, test.Mode)
+			if prefix != test.Prefix {
+				t.Errorf("incorrect prefix: expected %q, actual %q", test.Prefix, prefix)
+			}
+			if subject != test.Subject {
+				t.Errorf("incorrect subject: expected %q, actual %q", test.Subject, subject)
+			}
+		})
 	}
 }

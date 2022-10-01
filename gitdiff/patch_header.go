@@ -165,34 +165,71 @@ func ParsePatchDate(s string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("unknown date format: %s", s)
 }
 
-// ParsePatchHeader parses a preamble string as returned by Parse into a
+// A PatchHeaderOption modifies the behavior of ParsePatchHeader.
+type PatchHeaderOption func(*patchHeaderOptions)
+
+// SubjectCleanMode controls how ParsePatchHeader cleans subject lines when
+// parsing mail-formatted patches.
+type SubjectCleanMode int
+
+const (
+	// SubjectCleanWhitespace removes leading and trailing whitespace.
+	SubjectCleanWhitespace SubjectCleanMode = iota
+
+	// SubjectCleanAll removes leading and trailing whitespace, leading "Re:",
+	// "re:", and ":" strings, and leading strings enclosed by '[' and ']'.
+	// This is the default behavior of git (see `git mailinfo`) and this
+	// package.
+	SubjectCleanAll
+
+	// SubjectCleanPatchOnly is the same as SubjectCleanAll, but only removes
+	// leading strings enclosed by '[' and ']' if they start with "PATCH".
+	SubjectCleanPatchOnly
+)
+
+// WithSubjectCleanMode sets the SubjectCleanMode for header parsing. By
+// default, uses SubjectCleanAll.
+func WithSubjectCleanMode(m SubjectCleanMode) PatchHeaderOption {
+	return func(opts *patchHeaderOptions) {
+		opts.subjectCleanMode = m
+	}
+}
+
+type patchHeaderOptions struct {
+	subjectCleanMode SubjectCleanMode
+}
+
+// ParsePatchHeader parses the preamble string returned by [Parse] into a
 // PatchHeader. Due to the variety of header formats, some fields of the parsed
 // PatchHeader may be unset after parsing.
 //
 // Supported formats are the short, medium, full, fuller, and email pretty
-// formats used by git diff, git log, and git show and the UNIX mailbox format
-// used by git format-patch.
+// formats used by `git diff`, `git log`, and `git show` and the UNIX mailbox
+// format used by `git format-patch`.
 //
-// If ParsePatchHeader detects that it is handling an email, it will
-// remove extra content at the beginning of the title line, such as
-// `[PATCH]` or `Re:` in the same way that `git mailinfo` does.
-// SubjectPrefix will be set to the value of this removed string.
-// (`git mailinfo` is the core part of `git am` that pulls information
-// out of an individual mail.)
+// When parsing mail-formatted headers, ParsePatchHeader tries to remove
+// email-specific content from the title and body:
 //
-// Additionally, if ParsePatchHeader detects that it's handling an
-// email, it will remove a `---` line and put anything after it into
-// BodyAppendix.
+//   - Based on the SubjectCleanMode, remove prefixes like reply markers and
+//     "[PATCH]" strings from the subject, saving any removed content in the
+//     SubjectPrefix field. Parsing always discards leading and trailing
+//     whitespace from the subject line. The default mode is SubjectCleanAll.
 //
-// Those wishing the effect of a plain `git am` should use
-// `PatchHeader.Title + "\n" + PatchHeader.Body` (or
-// `PatchHeader.Message()`).  Those wishing to retain the subject
-// prefix and appendix material should use `PatchHeader.SubjectPrefix
-// + PatchHeader.Title + "\n" + PatchHeader.Body + "\n" +
-// PatchHeader.BodyAppendix`.
-func ParsePatchHeader(header string) (*PatchHeader, error) {
-	header = strings.TrimSpace(header)
+//   - If the body contains a "---" line (3 hyphens), remove that line and any
+//     content after it from the body and save it in the BodyAppendix field.
+//
+// ParsePatchHeader tries to process content it does not understand wthout
+// returning errors, but will return errors if well-identified content like
+// dates or identies uses unknown or invalid formats.
+func ParsePatchHeader(header string, options ...PatchHeaderOption) (*PatchHeader, error) {
+	opts := patchHeaderOptions{
+		subjectCleanMode: SubjectCleanAll, // match git defaults
+	}
+	for _, optFn := range options {
+		optFn(&opts)
+	}
 
+	header = strings.TrimSpace(header)
 	if header == "" {
 		return &PatchHeader{}, nil
 	}
@@ -208,12 +245,12 @@ func ParsePatchHeader(header string) (*PatchHeader, error) {
 
 	switch {
 	case strings.HasPrefix(firstLine, mailHeaderPrefix):
-		return parseHeaderMail(firstLine, strings.NewReader(rest))
+		return parseHeaderMail(firstLine, strings.NewReader(rest), opts)
 
 	case strings.HasPrefix(firstLine, mailMinimumHeaderPrefix):
 		// With a minimum header, the first line is part of the actual mail
 		// content and needs to be parsed as part of the "rest"
-		return parseHeaderMail("", strings.NewReader(header))
+		return parseHeaderMail("", strings.NewReader(header), opts)
 
 	case strings.HasPrefix(firstLine, prettyHeaderPrefix):
 		return parseHeaderPretty(firstLine, strings.NewReader(rest))
@@ -366,7 +403,7 @@ func scanMessageBody(s *bufio.Scanner, indent string, separateAppendix bool) (st
 	return body.String(), appendix.String()
 }
 
-func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
+func parseHeaderMail(mailLine string, r io.Reader, opts patchHeaderOptions) (*PatchHeader, error) {
 	msg, err := mail.ReadMessage(r)
 	if err != nil {
 		return nil, err
@@ -403,7 +440,7 @@ func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
 	}
 
 	subject := msg.Header.Get("Subject")
-	h.SubjectPrefix, h.Title = parseSubject(subject)
+	h.SubjectPrefix, h.Title = cleanSubject(subject, opts.subjectCleanMode)
 
 	s := bufio.NewScanner(msg.Body)
 	h.Body, h.BodyAppendix = scanMessageBody(s, "", true)
@@ -414,23 +451,24 @@ func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
 	return h, nil
 }
 
-// Takes an email subject and returns the patch prefix and commit
-// title.  i.e., `[PATCH v3 3/5] Implement foo` would return `[PATCH
-// v3 3/5] ` and `Implement foo`
-func parseSubject(s string) (string, string) {
-	// This is meant to be compatible with
-	// https://github.com/git/git/blob/master/mailinfo.c:cleanup_subject().
-	// If compatibility with `git am` drifts, go there to see if there
-	// are any updates.
+func cleanSubject(s string, mode SubjectCleanMode) (prefix string, subject string) {
+	switch mode {
+	case SubjectCleanAll, SubjectCleanPatchOnly:
+	case SubjectCleanWhitespace:
+		return "", strings.TrimSpace(decodeSubject(s))
+	default:
+		panic(fmt.Sprintf("unknown clean mode: %d", mode))
+	}
+
+	// Based on the algorithm from Git in mailinfo.c:cleanup_subject()
+	// If compatibility with `git am` drifts, go there to see if there are any updates.
 
 	at := 0
 	for at < len(s) {
 		switch s[at] {
 		case 'r', 'R':
 			// Detect re:, Re:, rE: and RE:
-			if at+2 < len(s) &&
-				(s[at+1] == 'e' || s[at+1] == 'E') &&
-				s[at+2] == ':' {
+			if at+2 < len(s) && (s[at+1] == 'e' || s[at+1] == 'E') && s[at+2] == ':' {
 				at += 3
 				continue
 			}
@@ -441,25 +479,21 @@ func parseSubject(s string) (string, string) {
 			continue
 
 		case '[':
-			// Look for closing parenthesis
-			j := at + 1
-			for ; j < len(s); j++ {
-				if s[j] == ']' {
-					break
+			if i := strings.IndexByte(s[at:], ']'); i > 0 {
+				if mode == SubjectCleanAll || strings.Contains(s[at:at+i+1], "PATCH") {
+					at += i + 1
+					continue
 				}
-			}
-
-			if j < len(s) {
-				at = j + 1
-				continue
 			}
 		}
 
-		// Only loop if we actually removed something
+		// Nothing was removed, end processing
 		break
 	}
 
-	return s[:at], decodeSubject(s[at:])
+	prefix = strings.TrimLeftFunc(s[:at], unicode.IsSpace)
+	subject = strings.TrimRightFunc(decodeSubject(s[at:]), unicode.IsSpace)
+	return
 }
 
 // Decodes a subject line. Currently only supports quoted-printable UTF-8. This format is the result
