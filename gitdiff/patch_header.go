@@ -190,35 +190,35 @@ func ParsePatchDate(s string) (time.Time, error) {
 // prefix and appendix material should use `PatchHeader.SubjectPrefix
 // + PatchHeader.Title + "\n" + PatchHeader.Body + "\n" +
 // PatchHeader.BodyAppendix`.
-func ParsePatchHeader(s string) (*PatchHeader, error) {
-	r := bufio.NewReader(strings.NewReader(s))
+func ParsePatchHeader(header string) (*PatchHeader, error) {
+	header = strings.TrimSpace(header)
 
-	var line string
-	for {
-		var err error
-		line, err = r.ReadString('\n')
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
+	if header == "" {
+		return &PatchHeader{}, nil
+	}
 
-		line = strings.TrimSpace(line)
-		if len(line) > 0 {
-			break
-		}
+	var firstLine, rest string
+	if idx := strings.IndexByte(header, '\n'); idx >= 0 {
+		firstLine = header[:idx]
+		rest = header[idx+1:]
+	} else {
+		firstLine = header
+		rest = ""
 	}
 
 	switch {
-	case strings.HasPrefix(line, mailHeaderPrefix):
-		return parseHeaderMail(line, r)
-	case strings.HasPrefix(line, mailMinimumHeaderPrefix):
-		r = bufio.NewReader(strings.NewReader(s))
-		return parseHeaderMail("", r)
-	case strings.HasPrefix(line, prettyHeaderPrefix):
-		return parseHeaderPretty(line, r)
+	case strings.HasPrefix(firstLine, mailHeaderPrefix):
+		return parseHeaderMail(firstLine, strings.NewReader(rest))
+
+	case strings.HasPrefix(firstLine, mailMinimumHeaderPrefix):
+		// With a minimum header, the first line is part of the actual mail
+		// content and needs to be parsed as part of the "rest"
+		return parseHeaderMail("", strings.NewReader(header))
+
+	case strings.HasPrefix(firstLine, prettyHeaderPrefix):
+		return parseHeaderPretty(firstLine, strings.NewReader(rest))
 	}
+
 	return nil, errors.New("unrecognized patch header format")
 }
 
@@ -233,7 +233,7 @@ func parseHeaderPretty(prettyLine string, r io.Reader) (*PatchHeader, error) {
 
 	h := &PatchHeader{}
 
-	prettyLine = prettyLine[len(prettyHeaderPrefix):]
+	prettyLine = strings.TrimPrefix(prettyLine, prettyHeaderPrefix)
 	if i := strings.IndexByte(prettyLine, ' '); i > 0 {
 		h.SHA = prettyLine[:i]
 	} else {
@@ -297,7 +297,7 @@ func parseHeaderPretty(prettyLine string, r io.Reader) (*PatchHeader, error) {
 	h.Title = title
 
 	if title != "" {
-		// Don't check for an appendix
+		// Don't check for an appendix, pretty headers do not contain them
 		body, _ := scanMessageBody(s, indent, false)
 		if s.Err() != nil {
 			return nil, s.Err()
@@ -374,8 +374,8 @@ func parseHeaderMail(mailLine string, r io.Reader) (*PatchHeader, error) {
 
 	h := &PatchHeader{}
 
-	if len(mailLine) > len(mailHeaderPrefix) {
-		mailLine = mailLine[len(mailHeaderPrefix):]
+	if strings.HasPrefix(mailLine, mailHeaderPrefix) {
+		mailLine = strings.TrimPrefix(mailLine, mailHeaderPrefix)
 		if i := strings.IndexByte(mailLine, ' '); i > 0 {
 			h.SHA = mailLine[:i]
 		}

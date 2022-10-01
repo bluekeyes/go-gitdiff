@@ -414,6 +414,10 @@ Author: Morton Haypenny <mhaypenny@example.com>
 				Title:  expectedTitle,
 			},
 		},
+		"empty": {
+			Input:  "",
+			Header: PatchHeader{},
+		},
 	}
 
 	for name, test := range tests {
