@@ -270,6 +270,28 @@ Another body line.
 				Body:       expectedBody,
 			},
 		},
+		"mailboxPatchOnly": {
+			Input: `From 61f5cd90bed4d204ee3feb3aa41ee91d4734855b Mon Sep 17 00:00:00 2001
+From: Morton Haypenny <mhaypenny@example.com>
+Date: Sat, 11 Apr 2020 15:21:23 -0700
+Subject: [PATCH] [BUG-123] A sample commit to test header parsing
+
+The medium format shows the body, which
+may wrap on to multiple lines.
+
+Another body line.
+`,
+			Options: []PatchHeaderOption{
+				WithSubjectCleanMode(SubjectCleanPatchOnly),
+			},
+			Header: PatchHeader{
+				SHA:        expectedSHA,
+				Author:     expectedIdentity,
+				AuthorDate: expectedDate,
+				Title:      "[BUG-123] " + expectedTitle,
+				Body:       expectedBody,
+			},
+		},
 		"mailboxEmojiOneLine": {
 			Input: `From 61f5cd90bed4d204ee3feb3aa41ee91d4734855b Mon Sep 17 00:00:00 2001
 From: Morton Haypenny <mhaypenny@example.com>
