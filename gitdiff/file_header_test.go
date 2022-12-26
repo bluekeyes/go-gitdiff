@@ -486,12 +486,24 @@ func TestParseGitHeaderData(t *testing.T) {
 				OldMode: os.FileMode(0100644),
 			},
 		},
+		"oldModeWithTrailingSpace": {
+			Line: "old mode 100644\r\n",
+			OutputFile: &File{
+				OldMode: os.FileMode(0100644),
+			},
+		},
 		"invalidOldMode": {
 			Line: "old mode rw\n",
 			Err:  true,
 		},
 		"newMode": {
 			Line: "new mode 100755\n",
+			OutputFile: &File{
+				NewMode: os.FileMode(0100755),
+			},
+		},
+		"newModeWithTrailingSpace": {
+			Line: "new mode 100755\r\n",
 			OutputFile: &File{
 				NewMode: os.FileMode(0100755),
 			},
@@ -511,6 +523,15 @@ func TestParseGitHeaderData(t *testing.T) {
 		},
 		"newFileMode": {
 			Line:        "new file mode 100755\n",
+			DefaultName: "dir/file.txt",
+			OutputFile: &File{
+				NewName: "dir/file.txt",
+				NewMode: os.FileMode(0100755),
+				IsNew:   true,
+			},
+		},
+		"newFileModeWithTrailingSpace": {
+			Line:        "new file mode 100755\r\n",
 			DefaultName: "dir/file.txt",
 			OutputFile: &File{
 				NewName: "dir/file.txt",
