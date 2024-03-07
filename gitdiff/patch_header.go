@@ -82,12 +82,15 @@ func (i PatchIdentity) String() string {
 	return fmt.Sprintf("%s <%s>", name, i.Email)
 }
 
-// ParsePatchIdentity parses a patch identity string. A valid string contains a
-// non-empty name followed by an email address in angle brackets. Like Git,
-// ParsePatchIdentity does not require that the email address is valid or
-// properly formatted, only that it is non-empty. The name must not contain a
-// left angle bracket, '<', and the email address must not contain a right
-// angle bracket, '>'.
+// ParsePatchIdentity parses a patch identity string. A valid string contains
+// an optional name followed by an email address in angle brackets. The angle
+// brackets must always exist, but may enclose an empty address. At least one
+// of the name or the email address must be non-empty. If the string only
+// contains an email address, that value is also used as the name.
+//
+// The name must not contain a left angle bracket, '<', and the email address
+// must not contain a right angle bracket, '>'. Otherwise, there are no
+// restrictions on the format of either field.
 func ParsePatchIdentity(s string) (PatchIdentity, error) {
 	var emailStart, emailEnd int
 	for i, c := range s {
@@ -110,7 +113,11 @@ func ParsePatchIdentity(s string) (PatchIdentity, error) {
 	if emailStart > 0 && emailEnd > 0 {
 		email = strings.TrimSpace(s[emailStart:emailEnd])
 	}
-	if name == "" || email == "" {
+	if name == "" && email != "" {
+		name = email
+	}
+
+	if name == "" && email == "" {
 		return PatchIdentity{}, fmt.Errorf("invalid identity string: %s", s)
 	}
 
