@@ -68,62 +68,6 @@ func (h *PatchHeader) Message() string {
 	return msg.String()
 }
 
-// PatchIdentity identifies a person who authored or committed a patch.
-type PatchIdentity struct {
-	Name  string
-	Email string
-}
-
-func (i PatchIdentity) String() string {
-	name := i.Name
-	if name == "" {
-		name = `""`
-	}
-	return fmt.Sprintf("%s <%s>", name, i.Email)
-}
-
-// ParsePatchIdentity parses a patch identity string. A valid string contains
-// an optional name followed by an email address in angle brackets. The angle
-// brackets must always exist, but may enclose an empty address. At least one
-// of the name or the email address must be non-empty. If the string only
-// contains an email address, that value is also used as the name.
-//
-// The name must not contain a left angle bracket, '<', and the email address
-// must not contain a right angle bracket, '>'. Otherwise, there are no
-// restrictions on the format of either field.
-func ParsePatchIdentity(s string) (PatchIdentity, error) {
-	var emailStart, emailEnd int
-	for i, c := range s {
-		if c == '<' && emailStart == 0 {
-			emailStart = i + 1
-		}
-		if c == '>' && emailStart > 0 {
-			emailEnd = i
-			break
-		}
-	}
-	if emailStart > 0 && emailEnd == 0 {
-		return PatchIdentity{}, fmt.Errorf("invalid identity string: unclosed email section: %s", s)
-	}
-
-	var name, email string
-	if emailStart > 0 {
-		name = strings.TrimSpace(s[:emailStart-1])
-	}
-	if emailStart > 0 && emailEnd > 0 {
-		email = strings.TrimSpace(s[emailStart:emailEnd])
-	}
-	if name == "" && email != "" {
-		name = email
-	}
-
-	if name == "" && email == "" {
-		return PatchIdentity{}, fmt.Errorf("invalid identity string: %s", s)
-	}
-
-	return PatchIdentity{Name: name, Email: email}, nil
-}
-
 // ParsePatchDate parses a patch date string. It returns the parsed time or an
 // error if s has an unknown format. ParsePatchDate supports the iso, rfc,
 // short, raw, unix, and default formats (with local variants) used by the
@@ -425,16 +369,13 @@ func parseHeaderMail(mailLine string, r io.Reader, opts patchHeaderOptions) (*Pa
 		}
 	}
 
-	addrs, err := msg.Header.AddressList("From")
-	if err != nil && !errors.Is(err, mail.ErrHeaderNotPresent) {
-		return nil, err
-	}
-	if len(addrs) > 0 {
-		addr := addrs[0]
-		if addr.Name == "" {
-			addr.Name = addr.Address
+	from := msg.Header.Get("From")
+	if from != "" {
+		u, err := ParsePatchIdentity(from)
+		if err != nil {
+			return nil, err
 		}
-		h.Author = &PatchIdentity{Name: addr.Name, Email: addr.Address}
+		h.Author = &u
 	}
 
 	date := msg.Header.Get("Date")
