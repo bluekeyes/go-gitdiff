@@ -59,6 +59,13 @@ func TestParsePatchIdentity(t *testing.T) {
 				Email: "mhaypenny+[1900]@example.com",
 			},
 		},
+		"rfc5322QuotedPairsOutOfContext": {
+			Input: `Morton \\Backslash Haypenny <mhaypenny@example.com>`,
+			Output: PatchIdentity{
+				Name:  `Morton \\Backslash Haypenny`,
+				Email: "mhaypenny@example.com",
+			},
+		},
 		"emptyEmail": {
 			Input: "Morton Haypenny <>",
 			Output: PatchIdentity{
@@ -71,6 +78,20 @@ func TestParsePatchIdentity(t *testing.T) {
 			Output: PatchIdentity{
 				Name:  "Morton Haypenny",
 				Email: "mhaypenny@example.com",
+			},
+		},
+		"bogusEmail": {
+			Input: "Morton Haypenny <mhaypenny>",
+			Output: PatchIdentity{
+				Name:  "Morton Haypenny",
+				Email: "mhaypenny",
+			},
+		},
+		"bogusEmailWithWhitespace": {
+			Input: "Morton Haypenny <  mhaypenny  >",
+			Output: PatchIdentity{
+				Name:  "Morton Haypenny",
+				Email: "mhaypenny",
 			},
 		},
 		"missingEmail": {

@@ -114,8 +114,11 @@ func unquotePairs(s string) string {
 		} else {
 			switch s[i] {
 			case '\\':
-				escaped = true
-				continue // drop '\' character
+				// quoted-pair is only allowed in quoted-string/comment
+				if quote || comments > 0 {
+					escaped = true
+					continue // drop '\' character
+				}
 
 			case '"':
 				if comments == 0 {
