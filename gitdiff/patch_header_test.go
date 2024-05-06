@@ -5,83 +5,6 @@ import (
 	"time"
 )
 
-func TestParsePatchIdentity(t *testing.T) {
-	tests := map[string]struct {
-		Input  string
-		Output PatchIdentity
-		Err    interface{}
-	}{
-		"simple": {
-			Input: "Morton Haypenny <mhaypenny@example.com>",
-			Output: PatchIdentity{
-				Name:  "Morton Haypenny",
-				Email: "mhaypenny@example.com",
-			},
-		},
-		"extraWhitespace": {
-			Input: "   Morton Haypenny  <mhaypenny@example.com  >  ",
-			Output: PatchIdentity{
-				Name:  "Morton Haypenny",
-				Email: "mhaypenny@example.com",
-			},
-		},
-		"trailingCharacters": {
-			Input: "Morton Haypenny <mhaypenny@example.com> unrelated garbage",
-			Output: PatchIdentity{
-				Name:  "Morton Haypenny",
-				Email: "mhaypenny@example.com",
-			},
-		},
-		"onlyEmail": {
-			Input: "<mhaypenny@example.com>",
-			Output: PatchIdentity{
-				Name:  "mhaypenny@example.com",
-				Email: "mhaypenny@example.com",
-			},
-		},
-		"emptyEmail": {
-			Input: "Morton Haypenny <>",
-			Output: PatchIdentity{
-				Name:  "Morton Haypenny",
-				Email: "",
-			},
-		},
-		"missingEmail": {
-			Input: "Morton Haypenny",
-			Err:   "invalid identity",
-		},
-		"missingNameAndEmptyEmail": {
-			Input: "<>",
-			Err:   "invalid identity",
-		},
-		"empty": {
-			Input: "",
-			Err:   "invalid identity",
-		},
-		"unclosedEmail": {
-			Input: "Morton Haypenny <mhaypenny@example.com",
-			Err:   "unclosed email",
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			id, err := ParsePatchIdentity(test.Input)
-			if test.Err != nil {
-				assertError(t, test.Err, err, "parsing identity")
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error parsing identity: %v", err)
-			}
-
-			if test.Output != id {
-				t.Errorf("incorrect identity: expected %#v, actual %#v", test.Output, id)
-			}
-		})
-	}
-}
-
 func TestParsePatchDate(t *testing.T) {
 	expected := time.Date(2020, 4, 9, 8, 7, 6, 0, time.UTC)
 
@@ -346,6 +269,28 @@ Another body line.
 				Author:     expectedIdentity,
 				AuthorDate: expectedDate,
 				Title:      expectedEmojiMultiLineTitle,
+				Body:       expectedBody,
+			},
+		},
+		"mailboxRFC5322SpecialCharacters": {
+			Input: `From 61f5cd90bed4d204ee3feb3aa41ee91d4734855b Mon Sep 17 00:00:00 2001
+From: "dependabot[bot]" <12345+dependabot[bot]@users.noreply.github.com>
+Date: Sat, 11 Apr 2020 15:21:23 -0700
+Subject: [PATCH] A sample commit to test header parsing
+
+The medium format shows the body, which
+may wrap on to multiple lines.
+
+Another body line.
+`,
+			Header: PatchHeader{
+				SHA: expectedSHA,
+				Author: &PatchIdentity{
+					Name:  "dependabot[bot]",
+					Email: "12345+dependabot[bot]@users.noreply.github.com",
+				},
+				AuthorDate: expectedDate,
+				Title:      expectedTitle,
 				Body:       expectedBody,
 			},
 		},
