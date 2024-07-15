@@ -281,8 +281,13 @@ this is another line
 --- could this be a header?
 nope, it's just some dashes
 `,
-			Output:   nil,
-			Preamble: "",
+			Output: nil,
+			Preamble: `
+this is a line
+this is another line
+--- could this be a header?
+nope, it's just some dashes
+`,
 		},
 		"detatchedFragmentLike": {
 			Input: `
@@ -290,6 +295,10 @@ a wild fragment appears?
 @@ -1,3 +1,4 ~1,5 @@
 `,
 			Output: nil,
+			Preamble: `
+a wild fragment appears?
+@@ -1,3 +1,4 ~1,5 @@
+`,
 		},
 		"detatchedFragment": {
 			Input: `
@@ -425,6 +434,11 @@ Date:   Tue Apr 2 22:55:40 2019 -0700
 				},
 			},
 			Preamble: textPreamble,
+		},
+		"noFiles": {
+			InputFile: "testdata/no_files.patch",
+			Output:    nil,
+			Preamble:  textPreamble,
 		},
 		"newBinaryFile": {
 			InputFile: "testdata/new_binary_file.patch",
