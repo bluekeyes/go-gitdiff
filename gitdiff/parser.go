@@ -33,6 +33,9 @@ func Parse(r io.Reader) ([]*File, string, error) {
 		if err != nil {
 			return files, preamble, err
 		}
+		if len(files) == 0 {
+			preamble = pre
+		}
 		if file == nil {
 			break
 		}
@@ -50,9 +53,6 @@ func Parse(r io.Reader) ([]*File, string, error) {
 			}
 		}
 
-		if len(files) == 0 {
-			preamble = pre
-		}
 		files = append(files, file)
 	}
 
