@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // File describes changes to a single file. It can be either a text file or a
@@ -38,6 +39,119 @@ type File struct {
 	ReverseBinaryFragment *BinaryFragment
 }
 
+// String returns a git diff representation of this file. The value can be
+// parsed by this library to obtain the same File, but may not be the same as
+// the original input or the same as what Git would produces
+func (f *File) String() string {
+	var diff strings.Builder
+
+	diff.WriteString("diff --git ")
+
+	var aName, bName string
+	switch {
+	case f.OldName == "":
+		aName = f.NewName
+		bName = f.NewName
+
+	case f.NewName == "":
+		aName = f.OldName
+		bName = f.OldName
+
+	default:
+		aName = f.OldName
+		bName = f.NewName
+	}
+
+	writeQuotedName(&diff, "a/"+aName)
+	diff.WriteByte(' ')
+	writeQuotedName(&diff, "b/"+bName)
+	diff.WriteByte('\n')
+
+	diff.WriteString("--- ")
+	if f.OldName == "" {
+		diff.WriteString("/dev/null")
+	} else {
+		writeQuotedName(&diff, f.OldName)
+	}
+	diff.WriteByte('\n')
+
+	diff.WriteString("+++ ")
+	if f.NewName == "" {
+		diff.WriteString("/dev/null")
+	} else {
+		writeQuotedName(&diff, f.NewName)
+	}
+	diff.WriteByte('\n')
+
+	if f.OldMode != 0 {
+		if f.IsDelete {
+			fmt.Fprintf(&diff, "deleted file mode %o\n", f.OldMode)
+		} else {
+			fmt.Fprintf(&diff, "old mode %o\n", f.OldMode)
+		}
+	}
+
+	if f.NewMode != 0 {
+		if f.IsNew {
+			fmt.Fprintf(&diff, "new file mode %o\n", f.NewMode)
+		} else {
+			fmt.Fprintf(&diff, "new mode %o\n", f.NewMode)
+		}
+	}
+
+	if f.Score > 0 {
+		if f.IsCopy || f.IsRename {
+			fmt.Fprintf(&diff, "similarity index %d%%\n", f.Score)
+		} else {
+			fmt.Fprintf(&diff, "dissimilarity index %d%%\n", f.Score)
+		}
+	}
+
+	if f.IsCopy {
+		if f.OldName != "" {
+			diff.WriteString("copy from ")
+			writeQuotedName(&diff, f.OldName)
+			diff.WriteByte('\n')
+		}
+		if f.NewName != "" {
+			diff.WriteString("copy to ")
+			writeQuotedName(&diff, f.NewName)
+			diff.WriteByte('\n')
+		}
+	}
+
+	if f.IsRename {
+		if f.OldName != "" {
+			diff.WriteString("rename from ")
+			writeQuotedName(&diff, f.OldName)
+			diff.WriteByte('\n')
+		}
+		if f.NewName != "" {
+			diff.WriteString("rename to ")
+			writeQuotedName(&diff, f.NewName)
+			diff.WriteByte('\n')
+		}
+	}
+
+	if f.OldOIDPrefix != "" && f.NewOIDPrefix != "" {
+		fmt.Fprintf(&diff, "index %s..%s", f.OldOIDPrefix, f.NewOIDPrefix)
+		if f.OldMode != 0 {
+			fmt.Fprintf(&diff, " %o", f.OldMode)
+		}
+		diff.WriteByte('\n')
+	}
+
+	if f.IsBinary {
+		// TODO(bkeyes): add string method for BinaryFragments
+	} else {
+		for _, frag := range f.TextFragments {
+			diff.WriteString(frag.String())
+		}
+	}
+
+	return diff.String()
+}
+
 // TextFragment describes changed lines starting at a specific line in a text file.
 type TextFragment struct {
 	Comment string
@@ -57,7 +171,26 @@ type TextFragment struct {
 	Lines []Line
 }
 
-// Header returns the canonical header of this fragment.
+// String returns a git diff format of this fragment. See [File.String] for
+// more details on this format.
+func (f *TextFragment) String() string {
+	var diff strings.Builder
+
+	diff.WriteString(f.Header())
+	diff.WriteString("\n")
+
+	for _, line := range f.Lines {
+		diff.WriteString(line.String())
+		if line.NoEOL() {
+			diff.WriteString("\n\\ No newline at end of file\n")
+		}
+	}
+
+	return diff.String()
+}
+
+// Header returns a git diff header of this fragment. See [File.String] for
+// more details on this format.
 func (f *TextFragment) Header() string {
 	return fmt.Sprintf("@@ -%d,%d +%d,%d @@ %s", f.OldPosition, f.OldLines, f.NewPosition, f.NewLines, f.Comment)
 }
