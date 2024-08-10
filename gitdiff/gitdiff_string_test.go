@@ -8,14 +8,17 @@ import (
 
 func TestFile_String(t *testing.T) {
 	sources := []string{
+		"testdata/string/copy.patch",
 		"testdata/string/delete.patch",
 		"testdata/string/mode.patch",
+		"testdata/string/mode_modify.patch",
 		"testdata/string/modify.patch",
 		"testdata/string/new.patch",
 		"testdata/string/new_empty.patch",
 		"testdata/string/new_mode.patch",
 		"testdata/string/rename.patch",
 		"testdata/string/rename_modify.patch",
+		"testdata/string/copy_modify.patch",
 	}
 
 	for _, src := range sources {

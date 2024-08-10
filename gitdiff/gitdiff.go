@@ -119,9 +119,12 @@ func (f *File) String() string {
 
 	if f.OldOIDPrefix != "" && f.NewOIDPrefix != "" {
 		fmt.Fprintf(&diff, "index %s..%s", f.OldOIDPrefix, f.NewOIDPrefix)
-		if f.OldMode != 0 && !f.IsDelete {
+
+		// Mode is only included on the index line when it is not changing
+		if f.OldMode != 0 && ((f.NewMode == 0 && !f.IsDelete) || f.OldMode == f.NewMode) {
 			fmt.Fprintf(&diff, " %o", f.OldMode)
 		}
+
 		diff.WriteByte('\n')
 	}
 
