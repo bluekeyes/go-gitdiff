@@ -67,26 +67,10 @@ func (f *File) String() string {
 	writeQuotedName(&diff, "b/"+bName)
 	diff.WriteByte('\n')
 
-	diff.WriteString("--- ")
-	if f.OldName == "" {
-		diff.WriteString("/dev/null")
-	} else {
-		writeQuotedName(&diff, f.OldName)
-	}
-	diff.WriteByte('\n')
-
-	diff.WriteString("+++ ")
-	if f.NewName == "" {
-		diff.WriteString("/dev/null")
-	} else {
-		writeQuotedName(&diff, f.NewName)
-	}
-	diff.WriteByte('\n')
-
 	if f.OldMode != 0 {
 		if f.IsDelete {
 			fmt.Fprintf(&diff, "deleted file mode %o\n", f.OldMode)
-		} else {
+		} else if f.NewMode != 0 {
 			fmt.Fprintf(&diff, "old mode %o\n", f.OldMode)
 		}
 	}
@@ -94,7 +78,7 @@ func (f *File) String() string {
 	if f.NewMode != 0 {
 		if f.IsNew {
 			fmt.Fprintf(&diff, "new file mode %o\n", f.NewMode)
-		} else {
+		} else if f.OldMode != 0 {
 			fmt.Fprintf(&diff, "new mode %o\n", f.NewMode)
 		}
 	}
@@ -135,8 +119,27 @@ func (f *File) String() string {
 
 	if f.OldOIDPrefix != "" && f.NewOIDPrefix != "" {
 		fmt.Fprintf(&diff, "index %s..%s", f.OldOIDPrefix, f.NewOIDPrefix)
-		if f.OldMode != 0 {
+		if f.OldMode != 0 && !f.IsDelete {
 			fmt.Fprintf(&diff, " %o", f.OldMode)
+		}
+		diff.WriteByte('\n')
+	}
+
+	// The "---" and "+++" lines only appear for patches with fragments
+	if len(f.TextFragments) > 0 || f.BinaryFragment != nil {
+		diff.WriteString("--- ")
+		if f.OldName == "" {
+			diff.WriteString("/dev/null")
+		} else {
+			writeQuotedName(&diff, "a/"+f.OldName)
+		}
+		diff.WriteByte('\n')
+
+		diff.WriteString("+++ ")
+		if f.NewName == "" {
+			diff.WriteString("/dev/null")
+		} else {
+			writeQuotedName(&diff, "b/"+f.NewName)
 		}
 		diff.WriteByte('\n')
 	}
@@ -192,7 +195,15 @@ func (f *TextFragment) String() string {
 // Header returns a git diff header of this fragment. See [File.String] for
 // more details on this format.
 func (f *TextFragment) Header() string {
-	return fmt.Sprintf("@@ -%d,%d +%d,%d @@ %s", f.OldPosition, f.OldLines, f.NewPosition, f.NewLines, f.Comment)
+	var hdr strings.Builder
+
+	fmt.Fprintf(&hdr, "@@ -%d,%d +%d,%d @@", f.OldPosition, f.OldLines, f.NewPosition, f.NewLines)
+	if f.Comment != "" {
+		hdr.WriteByte(' ')
+		hdr.WriteString(f.Comment)
+	}
+
+	return hdr.String()
 }
 
 // Validate checks that the fragment is self-consistent and appliable. Validate
