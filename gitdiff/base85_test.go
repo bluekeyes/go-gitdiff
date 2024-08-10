@@ -1,6 +1,9 @@
 package gitdiff
 
 import (
+	"bytes"
+	"fmt"
+	"math/rand"
 	"testing"
 )
 
@@ -54,6 +57,63 @@ func TestBase85Decode(t *testing.T) {
 				if dst[i] != b {
 					t.Errorf("incorrect byte at index %d: expected 0x%X, actual 0x%X", i, b, dst[i])
 				}
+			}
+		})
+	}
+}
+
+func TestBase85Encode(t *testing.T) {
+	tests := map[string]struct {
+		Input  []byte
+		Output string
+	}{
+		"zeroBytes": {
+			Input:  []byte{},
+			Output: "",
+		},
+		"twoBytes": {
+			Input:  []byte{0xCA, 0xFE},
+			Output: "%KiWV",
+		},
+		"fourBytes": {
+			Input:  []byte{0x0, 0x0, 0xCA, 0xFE},
+			Output: "007GV",
+		},
+		"sixBytes": {
+			Input:  []byte{0x0, 0x0, 0xCA, 0xFE, 0xCA, 0xFE},
+			Output: "007GV%KiWV",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			dst := make([]byte, len(test.Output))
+			base85Encode(dst, test.Input)
+			for i, b := range test.Output {
+				if dst[i] != byte(b) {
+					t.Errorf("incorrect character at index %d: expected '%c', actual '%c'", i, b, dst[i])
+				}
+			}
+		})
+	}
+}
+
+func TestBase85Roundtrip(t *testing.T) {
+	r := rand.New(rand.NewSource(72)) // chosen by fair dice roll
+
+	for _, size := range []int{64, 85, 1025} {
+		t.Run(fmt.Sprintf("size%d", size), func(t *testing.T) {
+			in := make([]byte, size)
+			r.Read(in)
+
+			dst := make([]byte, base85Len(size))
+			out := make([]byte, size)
+
+			base85Encode(dst, in)
+			base85Decode(out, dst)
+
+			if !bytes.Equal(in, out) {
+				t.Errorf("decoded data differed from input data:\n   input: %x\n  output: %x\nencoding: %s\n", in, out, string(dst))
 			}
 		})
 	}

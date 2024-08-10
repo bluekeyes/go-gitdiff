@@ -8,7 +8,10 @@ import (
 
 func TestFile_String(t *testing.T) {
 	sources := []string{
+		"testdata/string/binary_modify.patch",
+		"testdata/string/binary_new.patch",
 		"testdata/string/copy.patch",
+		"testdata/string/copy_modify.patch",
 		"testdata/string/delete.patch",
 		"testdata/string/mode.patch",
 		"testdata/string/mode_modify.patch",
@@ -18,7 +21,6 @@ func TestFile_String(t *testing.T) {
 		"testdata/string/new_mode.patch",
 		"testdata/string/rename.patch",
 		"testdata/string/rename_modify.patch",
-		"testdata/string/copy_modify.patch",
 	}
 
 	for _, src := range sources {
@@ -46,3 +48,20 @@ func assertParseSingleFile(t *testing.T, src string, b []byte) *File {
 	}
 	return files[0]
 }
+
+/*
+func TestDecode(t *testing.T) {
+	actual := []byte("cmV-O")
+	mine := []byte("cmV)N")
+
+	dst := make([]byte, 4)
+
+	base85Decode(dst, actual)
+	t.Logf("actual: %x / %b", dst, dst)
+
+	base85Decode(dst, mine)
+	t.Logf("  mine: %x / %b", dst, dst)
+
+	t.FailNow()
+}
+*/

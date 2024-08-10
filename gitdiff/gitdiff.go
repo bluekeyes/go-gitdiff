@@ -1,9 +1,12 @@
 package gitdiff
 
 import (
+	"bytes"
+	"compress/zlib"
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -128,8 +131,21 @@ func (f *File) String() string {
 		diff.WriteByte('\n')
 	}
 
-	// The "---" and "+++" lines only appear for patches with fragments
-	if len(f.TextFragments) > 0 || f.BinaryFragment != nil {
+	if f.IsBinary {
+		if f.BinaryFragment == nil {
+			diff.WriteString("Binary files differ\n")
+		} else {
+			diff.WriteString("GIT binary patch\n")
+			diff.WriteString(f.BinaryFragment.String())
+			if f.ReverseBinaryFragment != nil {
+				diff.WriteByte('\n')
+				diff.WriteString(f.ReverseBinaryFragment.String())
+			}
+		}
+	}
+
+	// The "---" and "+++" lines only appear for text patches with fragments
+	if len(f.TextFragments) > 0 {
 		diff.WriteString("--- ")
 		if f.OldName == "" {
 			diff.WriteString("/dev/null")
@@ -145,11 +161,7 @@ func (f *File) String() string {
 			writeQuotedName(&diff, "b/"+f.NewName)
 		}
 		diff.WriteByte('\n')
-	}
 
-	if f.IsBinary {
-		// TODO(bkeyes): add string method for BinaryFragments
-	} else {
 		for _, frag := range f.TextFragments {
 			diff.WriteString(frag.String())
 		}
@@ -344,3 +356,83 @@ const (
 	// BinaryPatchLiteral indicates the data is the exact file content
 	BinaryPatchLiteral
 )
+
+func (f *BinaryFragment) String() string {
+	const (
+		maxBytesPerLine = 52
+	)
+
+	var diff strings.Builder
+
+	switch f.Method {
+	case BinaryPatchDelta:
+		diff.WriteString("delta ")
+	case BinaryPatchLiteral:
+		diff.WriteString("literal ")
+	}
+	diff.Write(strconv.AppendInt(nil, f.Size, 10))
+	diff.WriteByte('\n')
+
+	data := deflateBinaryChunk(f.Data)
+	n := (len(data) / maxBytesPerLine) * maxBytesPerLine
+
+	buf := make([]byte, base85Len(maxBytesPerLine))
+	for i := 0; i < n; i += maxBytesPerLine {
+		base85Encode(buf, data[i:i+maxBytesPerLine])
+		diff.WriteByte('z')
+		diff.Write(buf)
+		diff.WriteByte('\n')
+	}
+	if remainder := len(data) - n; remainder > 0 {
+		buf = buf[0:base85Len(remainder)]
+
+		sizeChar := byte(remainder)
+		if remainder <= 26 {
+			sizeChar = 'A' + sizeChar - 1
+		} else {
+			sizeChar = 'a' + sizeChar - 27
+		}
+
+		base85Encode(buf, data[n:])
+		diff.WriteByte(sizeChar)
+		diff.Write(buf)
+		diff.WriteByte('\n')
+	}
+
+	return diff.String()
+}
+
+// TODO(bkeyes): The 'compress/flate' package does not produce minimal output
+// streams. Instead of flagging that the last block of data represents the end
+// of the stream, it always writes a final empty block to mark the end. Git's
+// implementation using the 'zlib' C library does not do this, which means that
+// what we produce for binary patches does not match the input, even though it
+// is valid.
+//
+// This is mostly a problem for my tests, where I compare the input and output
+// bytes. This comparison isn't required, but is helpful to catch invalid
+// output that might otherwise still parse.
+//
+// Options for fixing this:
+//
+//  1. Fix the tests to compare parsed objects instead of raw patches, at least
+//     for binary patches. This means writing something to do reasonable
+//     comparisons of File structs.
+//
+//  2. Add my own deflate function. By default, Git appears to use no
+//     compression on binary patch data, which means "delfate" is just adding
+//     the appropriate headers and checksums around the data. This would fix my
+//     tests but means we could never emit compressed data, so we'd differ from
+//     Git in other situations.
+//
+// Either way, there will be situations in which re-formatted binary patches
+// differ from the original inputs.
+func deflateBinaryChunk(data []byte) []byte {
+	var b bytes.Buffer
+
+	zw, _ := zlib.NewWriterLevel(&b, zlib.NoCompression)
+	_, _ = zw.Write(data)
+	_ = zw.Close()
+
+	return b.Bytes()
+}
