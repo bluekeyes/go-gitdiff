@@ -137,9 +137,11 @@ func (f *File) String() string {
 		} else {
 			diff.WriteString("GIT binary patch\n")
 			diff.WriteString(f.BinaryFragment.String())
+			diff.WriteByte('\n')
+
 			if f.ReverseBinaryFragment != nil {
-				diff.WriteByte('\n')
 				diff.WriteString(f.ReverseBinaryFragment.String())
+				diff.WriteByte('\n')
 			}
 		}
 	}
@@ -402,35 +404,10 @@ func (f *BinaryFragment) String() string {
 	return diff.String()
 }
 
-// TODO(bkeyes): The 'compress/flate' package does not produce minimal output
-// streams. Instead of flagging that the last block of data represents the end
-// of the stream, it always writes a final empty block to mark the end. Git's
-// implementation using the 'zlib' C library does not do this, which means that
-// what we produce for binary patches does not match the input, even though it
-// is valid.
-//
-// This is mostly a problem for my tests, where I compare the input and output
-// bytes. This comparison isn't required, but is helpful to catch invalid
-// output that might otherwise still parse.
-//
-// Options for fixing this:
-//
-//  1. Fix the tests to compare parsed objects instead of raw patches, at least
-//     for binary patches. This means writing something to do reasonable
-//     comparisons of File structs.
-//
-//  2. Add my own deflate function. By default, Git appears to use no
-//     compression on binary patch data, which means "delfate" is just adding
-//     the appropriate headers and checksums around the data. This would fix my
-//     tests but means we could never emit compressed data, so we'd differ from
-//     Git in other situations.
-//
-// Either way, there will be situations in which re-formatted binary patches
-// differ from the original inputs.
 func deflateBinaryChunk(data []byte) []byte {
 	var b bytes.Buffer
 
-	zw, _ := zlib.NewWriterLevel(&b, zlib.NoCompression)
+	zw := zlib.NewWriter(&b)
 	_, _ = zw.Write(data)
 	_ = zw.Close()
 
