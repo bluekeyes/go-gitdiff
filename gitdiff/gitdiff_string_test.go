@@ -4,54 +4,64 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 )
 
 func TestParseRoundtrip(t *testing.T) {
-	sources := []string{
-		"testdata/string/binary_modify.patch",
-		"testdata/string/binary_new.patch",
-		"testdata/string/copy.patch",
-		"testdata/string/copy_modify.patch",
-		"testdata/string/delete.patch",
-		"testdata/string/mode.patch",
-		"testdata/string/mode_modify.patch",
-		"testdata/string/modify.patch",
-		"testdata/string/new.patch",
-		"testdata/string/new_empty.patch",
-		"testdata/string/new_mode.patch",
-		"testdata/string/rename.patch",
-		"testdata/string/rename_modify.patch",
+	patches := []struct {
+		File            string
+		SkipTextCompare bool
+	}{
+		{File: "copy.patch"},
+		{File: "copy_modify.patch"},
+		{File: "delete.patch"},
+		{File: "mode.patch"},
+		{File: "mode_modify.patch"},
+		{File: "modify.patch"},
+		{File: "new.patch"},
+		{File: "new_empty.patch"},
+		{File: "new_mode.patch"},
+		{File: "rename.patch"},
+		{File: "rename_modify.patch"},
+
+		// Due to differences between Go's 'encoding/zlib' package and the zlib
+		// C library, binary patches cannot be compared directly as the patch
+		// data is slightly different when re-encoded by Go.
+		{File: "binary_modify.patch", SkipTextCompare: true},
+		{File: "binary_new.patch", SkipTextCompare: true},
 	}
 
-	for _, src := range sources {
-		b, err := os.ReadFile(src)
-		if err != nil {
-			t.Fatalf("failed to read %s: %v", src, err)
-		}
+	for _, patch := range patches {
+		t.Run(patch.File, func(t *testing.T) {
+			b, err := os.ReadFile(filepath.Join("testdata", "string", patch.File))
+			if err != nil {
+				t.Fatalf("failed to read patch: %v", err)
+			}
 
-		original := assertParseSingleFile(t, src, b)
-		str := original.String()
+			original := assertParseSingleFile(t, b, "patch")
+			str := original.String()
 
-		if string(b) != str {
-			t.Errorf("%s: incorrect patch\nexpected: %q\n  actual: %q\n", src, string(b), str)
-		}
+			if !patch.SkipTextCompare {
+				if string(b) != str {
+					t.Errorf("incorrect patch text\nexpected: %q\n  actual: %q\n", string(b), str)
+				}
+			}
 
-		reparsed := assertParseSingleFile(t, fmt.Sprintf("Parse(%q).String()", src), []byte(str))
-
-		// TODO(bkeyes): include source in these messages (via subtest?)
-		assertFilesEqual(t, original, reparsed)
+			reparsed := assertParseSingleFile(t, []byte(str), "formatted patch")
+			assertFilesEqual(t, original, reparsed)
+		})
 	}
 }
 
-func assertParseSingleFile(t *testing.T, src string, b []byte) *File {
+func assertParseSingleFile(t *testing.T, b []byte, kind string) *File {
 	files, _, err := Parse(bytes.NewReader(b))
 	if err != nil {
-		t.Fatalf("failed to parse patch %s: %v", src, err)
+		t.Fatalf("failed to parse %s: %v", kind, err)
 	}
 	if len(files) != 1 {
-		t.Fatalf("expected %s to contain a single files, but found %d", src, len(files))
+		t.Fatalf("expected %s to contain a single files, but found %d", kind, len(files))
 	}
 	return files[0]
 }
