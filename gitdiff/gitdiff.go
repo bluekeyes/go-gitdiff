@@ -41,7 +41,7 @@ type File struct {
 
 // String returns a git diff representation of this file. The value can be
 // parsed by this library to obtain the same File, but may not be the same as
-// the original input or the same as what Git would produces
+// the original input.
 func (f *File) String() string {
 	var diff strings.Builder
 	newFormatter(&diff).FormatFile(f)
@@ -219,6 +219,10 @@ const (
 	BinaryPatchLiteral
 )
 
+// String returns a git diff format of this fragment. Due to differences in
+// zlib implementation between Go and Git, encoded binary data in the result
+// will likely differ from what Git produces for the same input. See
+// [File.String] for more details on this format.
 func (f *BinaryFragment) String() string {
 	var diff strings.Builder
 	newFormatter(&diff).FormatBinaryFragment(f)
