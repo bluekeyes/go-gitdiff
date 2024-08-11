@@ -1,12 +1,9 @@
 package gitdiff
 
 import (
-	"bytes"
-	"compress/zlib"
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -47,128 +44,7 @@ type File struct {
 // the original input or the same as what Git would produces
 func (f *File) String() string {
 	var diff strings.Builder
-
-	diff.WriteString("diff --git ")
-
-	var aName, bName string
-	switch {
-	case f.OldName == "":
-		aName = f.NewName
-		bName = f.NewName
-
-	case f.NewName == "":
-		aName = f.OldName
-		bName = f.OldName
-
-	default:
-		aName = f.OldName
-		bName = f.NewName
-	}
-
-	writeQuotedName(&diff, "a/"+aName)
-	diff.WriteByte(' ')
-	writeQuotedName(&diff, "b/"+bName)
-	diff.WriteByte('\n')
-
-	if f.OldMode != 0 {
-		if f.IsDelete {
-			fmt.Fprintf(&diff, "deleted file mode %o\n", f.OldMode)
-		} else if f.NewMode != 0 {
-			fmt.Fprintf(&diff, "old mode %o\n", f.OldMode)
-		}
-	}
-
-	if f.NewMode != 0 {
-		if f.IsNew {
-			fmt.Fprintf(&diff, "new file mode %o\n", f.NewMode)
-		} else if f.OldMode != 0 {
-			fmt.Fprintf(&diff, "new mode %o\n", f.NewMode)
-		}
-	}
-
-	if f.Score > 0 {
-		if f.IsCopy || f.IsRename {
-			fmt.Fprintf(&diff, "similarity index %d%%\n", f.Score)
-		} else {
-			fmt.Fprintf(&diff, "dissimilarity index %d%%\n", f.Score)
-		}
-	}
-
-	if f.IsCopy {
-		if f.OldName != "" {
-			diff.WriteString("copy from ")
-			writeQuotedName(&diff, f.OldName)
-			diff.WriteByte('\n')
-		}
-		if f.NewName != "" {
-			diff.WriteString("copy to ")
-			writeQuotedName(&diff, f.NewName)
-			diff.WriteByte('\n')
-		}
-	}
-
-	if f.IsRename {
-		if f.OldName != "" {
-			diff.WriteString("rename from ")
-			writeQuotedName(&diff, f.OldName)
-			diff.WriteByte('\n')
-		}
-		if f.NewName != "" {
-			diff.WriteString("rename to ")
-			writeQuotedName(&diff, f.NewName)
-			diff.WriteByte('\n')
-		}
-	}
-
-	if f.OldOIDPrefix != "" && f.NewOIDPrefix != "" {
-		fmt.Fprintf(&diff, "index %s..%s", f.OldOIDPrefix, f.NewOIDPrefix)
-
-		// Mode is only included on the index line when it is not changing
-		if f.OldMode != 0 && ((f.NewMode == 0 && !f.IsDelete) || f.OldMode == f.NewMode) {
-			fmt.Fprintf(&diff, " %o", f.OldMode)
-		}
-
-		diff.WriteByte('\n')
-	}
-
-	if f.IsBinary {
-		if f.BinaryFragment == nil {
-			diff.WriteString("Binary files differ\n")
-		} else {
-			diff.WriteString("GIT binary patch\n")
-			diff.WriteString(f.BinaryFragment.String())
-			diff.WriteByte('\n')
-
-			if f.ReverseBinaryFragment != nil {
-				diff.WriteString(f.ReverseBinaryFragment.String())
-				diff.WriteByte('\n')
-			}
-		}
-	}
-
-	// The "---" and "+++" lines only appear for text patches with fragments
-	if len(f.TextFragments) > 0 {
-		diff.WriteString("--- ")
-		if f.OldName == "" {
-			diff.WriteString("/dev/null")
-		} else {
-			writeQuotedName(&diff, "a/"+f.OldName)
-		}
-		diff.WriteByte('\n')
-
-		diff.WriteString("+++ ")
-		if f.NewName == "" {
-			diff.WriteString("/dev/null")
-		} else {
-			writeQuotedName(&diff, "b/"+f.NewName)
-		}
-		diff.WriteByte('\n')
-
-		for _, frag := range f.TextFragments {
-			diff.WriteString(frag.String())
-		}
-	}
-
+	newFormatter(&diff).FormatFile(f)
 	return diff.String()
 }
 
@@ -195,17 +71,7 @@ type TextFragment struct {
 // more details on this format.
 func (f *TextFragment) String() string {
 	var diff strings.Builder
-
-	diff.WriteString(f.Header())
-	diff.WriteString("\n")
-
-	for _, line := range f.Lines {
-		diff.WriteString(line.String())
-		if line.NoEOL() {
-			diff.WriteString("\n\\ No newline at end of file\n")
-		}
-	}
-
+	newFormatter(&diff).FormatTextFragment(f)
 	return diff.String()
 }
 
@@ -213,13 +79,7 @@ func (f *TextFragment) String() string {
 // more details on this format.
 func (f *TextFragment) Header() string {
 	var hdr strings.Builder
-
-	fmt.Fprintf(&hdr, "@@ -%d,%d +%d,%d @@", f.OldPosition, f.OldLines, f.NewPosition, f.NewLines)
-	if f.Comment != "" {
-		hdr.WriteByte(' ')
-		hdr.WriteString(f.Comment)
-	}
-
+	newFormatter(&hdr).FormatTextFragmentHeader(f)
 	return hdr.String()
 }
 
@@ -360,56 +220,7 @@ const (
 )
 
 func (f *BinaryFragment) String() string {
-	const (
-		maxBytesPerLine = 52
-	)
-
 	var diff strings.Builder
-
-	switch f.Method {
-	case BinaryPatchDelta:
-		diff.WriteString("delta ")
-	case BinaryPatchLiteral:
-		diff.WriteString("literal ")
-	}
-	diff.Write(strconv.AppendInt(nil, f.Size, 10))
-	diff.WriteByte('\n')
-
-	data := deflateBinaryChunk(f.Data)
-	n := (len(data) / maxBytesPerLine) * maxBytesPerLine
-
-	buf := make([]byte, base85Len(maxBytesPerLine))
-	for i := 0; i < n; i += maxBytesPerLine {
-		base85Encode(buf, data[i:i+maxBytesPerLine])
-		diff.WriteByte('z')
-		diff.Write(buf)
-		diff.WriteByte('\n')
-	}
-	if remainder := len(data) - n; remainder > 0 {
-		buf = buf[0:base85Len(remainder)]
-
-		sizeChar := byte(remainder)
-		if remainder <= 26 {
-			sizeChar = 'A' + sizeChar - 1
-		} else {
-			sizeChar = 'a' + sizeChar - 27
-		}
-
-		base85Encode(buf, data[n:])
-		diff.WriteByte(sizeChar)
-		diff.Write(buf)
-		diff.WriteByte('\n')
-	}
-
+	newFormatter(&diff).FormatBinaryFragment(f)
 	return diff.String()
-}
-
-func deflateBinaryChunk(data []byte) []byte {
-	var b bytes.Buffer
-
-	zw := zlib.NewWriter(&b)
-	_, _ = zw.Write(data)
-	_ = zw.Close()
-
-	return b.Bytes()
 }

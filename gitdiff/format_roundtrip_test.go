@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestParseRoundtrip(t *testing.T) {
+func TestFormatRoundtrip(t *testing.T) {
 	patches := []struct {
 		File            string
 		SkipTextCompare bool

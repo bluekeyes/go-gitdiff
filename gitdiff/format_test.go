@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestWriteQuotedName(t *testing.T) {
+func TestFormatter_WriteQuotedName(t *testing.T) {
 	tests := []struct {
 		Input    string
 		Expected string
@@ -20,7 +20,7 @@ func TestWriteQuotedName(t *testing.T) {
 
 	for _, test := range tests {
 		var b strings.Builder
-		writeQuotedName(&b, test.Input)
+		newFormatter(&b).WriteQuotedName(test.Input)
 		if b.String() != test.Expected {
 			t.Errorf("expected %q, got %q", test.Expected, b.String())
 		}
