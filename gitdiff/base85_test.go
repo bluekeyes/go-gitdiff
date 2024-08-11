@@ -2,8 +2,6 @@ package gitdiff
 
 import (
 	"bytes"
-	"fmt"
-	"math/rand"
 	"testing"
 )
 
@@ -98,23 +96,22 @@ func TestBase85Encode(t *testing.T) {
 	}
 }
 
-func TestBase85Roundtrip(t *testing.T) {
-	r := rand.New(rand.NewSource(72)) // chosen by fair dice roll
+func FuzzBase85Roundtrip(f *testing.F) {
+	f.Add([]byte{0x2b, 0x0d})
+	f.Add([]byte{0xbc, 0xb4, 0x3f})
+	f.Add([]byte{0xfa, 0x62, 0x05, 0x83, 0x24, 0x39, 0xd5, 0x25})
+	f.Add([]byte{0x31, 0x59, 0x02, 0xa0, 0x61, 0x12, 0xd9, 0x43, 0xb8, 0x23, 0x1a, 0xb4, 0x02, 0xae, 0xfa, 0xcc, 0x22, 0xad, 0x41, 0xb9, 0xb8})
 
-	for _, size := range []int{64, 85, 1025} {
-		t.Run(fmt.Sprintf("size%d", size), func(t *testing.T) {
-			in := make([]byte, size)
-			r.Read(in)
+	f.Fuzz(func(t *testing.T, in []byte) {
+		n := len(in)
+		dst := make([]byte, base85Len(n))
+		out := make([]byte, n)
 
-			dst := make([]byte, base85Len(size))
-			out := make([]byte, size)
+		base85Encode(dst, in)
+		base85Decode(out, dst)
 
-			base85Encode(dst, in)
-			base85Decode(out, dst)
-
-			if !bytes.Equal(in, out) {
-				t.Errorf("decoded data differed from input data:\n   input: %x\n  output: %x\nencoding: %s\n", in, out, string(dst))
-			}
-		})
-	}
+		if !bytes.Equal(in, out) {
+			t.Errorf("decoded data differed from input data:\n   input: %x\n  output: %x\nencoding: %s\n", in, out, string(dst))
+		}
+	})
 }
