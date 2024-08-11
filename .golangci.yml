@@ -4,27 +4,47 @@ run:
 linters:
   disable-all: true
   enable:
-    - deadcode
     - errcheck
     - gofmt
     - goimports
-    - golint
     - govet
     - ineffassign
     - misspell
+    - revive
     - typecheck
     - unconvert
-    - varcheck
+    - unused
 
 issues:
   exclude-use-default: false
 
 linters-settings:
-  goimports:
-    local-prefixes: github.com/bluekeyes/go-gitdiff
   errcheck:
     exclude-functions:
       - (*github.com/bluekeyes/go-gitdiff/gitdiff.formatter).Write
       - (*github.com/bluekeyes/go-gitdiff/gitdiff.formatter).WriteString
       - (*github.com/bluekeyes/go-gitdiff/gitdiff.formatter).WriteByte
       - fmt.Fprintf(*github.com/bluekeyes/go-gitdiff/gitdiff.formatter)
+  goimports:
+    local-prefixes: github.com/bluekeyes/go-gitdiff
+  revive:
+    rules:
+      # enable all rules from golint
+      - name: context-keys-type
+      - name: time-naming
+      - name: var-declaration
+      - name: unexported-return
+      - name: errorf
+      - name: blank-imports
+      - name: context-as-argument
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: increment-decrement
+      - name: var-naming
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: indent-error-flow
