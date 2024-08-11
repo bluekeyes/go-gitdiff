@@ -108,8 +108,9 @@ func FuzzBase85Roundtrip(f *testing.F) {
 		out := make([]byte, n)
 
 		base85Encode(dst, in)
-		base85Decode(out, dst)
-
+		if err := base85Decode(out, dst); err != nil {
+			t.Fatalf("unexpected error decoding base85 data: %v", err)
+		}
 		if !bytes.Equal(in, out) {
 			t.Errorf("decoded data differed from input data:\n   input: %x\n  output: %x\nencoding: %s\n", in, out, string(dst))
 		}
