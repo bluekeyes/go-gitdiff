@@ -88,7 +88,7 @@ func (p *parser) ParseTextChunk(frag *TextFragment) error {
 		case '\n':
 			data = "\n"
 			fallthrough // newer GNU diff versions create empty context lines
-		case ' ':
+		case ' ', '\t':
 			oldLines--
 			newLines--
 			if frag.LinesAdded == 0 && frag.LinesDeleted == 0 {
