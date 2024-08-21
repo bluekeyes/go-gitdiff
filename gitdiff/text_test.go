@@ -246,6 +246,26 @@ func TestParseTextChunk(t *testing.T) {
 				LinesAdded: 3,
 			},
 		},
+		"addTabSpace": {
+			Input: `+new line 1
++	new line 2
++    new line 3
+`,
+			Fragment: TextFragment{
+				OldLines: 0,
+				NewLines: 3,
+			},
+			Output: &TextFragment{
+				OldLines: 0,
+				NewLines: 3,
+				Lines: []Line{
+					{OpAdd, "new line 1\n"},
+					{OpAdd, "	new line 2\n"},
+					{OpAdd, "    new line 3\n"},
+				},
+				LinesAdded: 3,
+			},
+		},
 		"deleteAll": {
 			Input: `-old line 1
 -old line 2
