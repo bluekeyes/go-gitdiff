@@ -155,8 +155,10 @@ func lineCountErr(kind string, actual, reported int64) error {
 
 // Line is a line in a text fragment.
 type Line struct {
-	Op   LineOp
-	Line string
+	Op        LineOp
+	Line      string
+	OldLineNo int64
+	NewLineNo int64
 }
 
 func (fl Line) String() string {

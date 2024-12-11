@@ -79,6 +79,15 @@ func (p *parser) ParseTextChunk(frag *TextFragment) error {
 		return p.Errorf(0, "no content following fragment header")
 	}
 
+	oldLineNo := int64(0)
+	newLineNo := int64(0)
+	if frag.OldPosition > 0 {
+		oldLineNo = frag.OldPosition - 1
+	}
+	if frag.NewPosition > 0 {
+		newLineNo = frag.NewPosition - 1
+	}
+
 	oldLines, newLines := frag.OldLines, frag.NewLines
 	for oldLines > 0 || newLines > 0 {
 		line := p.Line(0)
@@ -89,6 +98,8 @@ func (p *parser) ParseTextChunk(frag *TextFragment) error {
 			data = "\n"
 			fallthrough // newer GNU diff versions create empty context lines
 		case ' ':
+			oldLineNo++
+			newLineNo++
 			oldLines--
 			newLines--
 			if frag.LinesAdded == 0 && frag.LinesDeleted == 0 {
@@ -96,17 +107,19 @@ func (p *parser) ParseTextChunk(frag *TextFragment) error {
 			} else {
 				frag.TrailingContext++
 			}
-			frag.Lines = append(frag.Lines, Line{OpContext, data})
+			frag.Lines = append(frag.Lines, Line{Op: OpContext, Line: data, NewLineNo: newLineNo, OldLineNo: oldLineNo})
 		case '-':
+			oldLineNo++
 			oldLines--
 			frag.LinesDeleted++
 			frag.TrailingContext = 0
-			frag.Lines = append(frag.Lines, Line{OpDelete, data})
+			frag.Lines = append(frag.Lines, Line{Op: OpDelete, Line: data, NewLineNo: 0, OldLineNo: oldLineNo})
 		case '+':
+			newLineNo++
 			newLines--
 			frag.LinesAdded++
 			frag.TrailingContext = 0
-			frag.Lines = append(frag.Lines, Line{OpAdd, data})
+			frag.Lines = append(frag.Lines, Line{Op: OpAdd, Line: data, NewLineNo: newLineNo, OldLineNo: 0})
 		case '\\':
 			// this may appear in middle of fragment if it's for a deleted line
 			if isNoNewlineMarker(line) {

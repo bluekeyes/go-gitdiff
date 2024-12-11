@@ -94,10 +94,10 @@ func TestParseTextChunk(t *testing.T) {
 				OldLines: 2,
 				NewLines: 4,
 				Lines: []Line{
-					{OpContext, "context line\n"},
-					{OpAdd, "new line 1\n"},
-					{OpAdd, "new line 2\n"},
-					{OpContext, "context line\n"},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 1, NewLineNo: 1},
+					{Op: OpAdd, Line: "new line 1\n", OldLineNo: 0, NewLineNo: 2},
+					{Op: OpAdd, Line: "new line 2\n", OldLineNo: 0, NewLineNo: 3},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 2, NewLineNo: 4},
 				},
 				LinesAdded:      2,
 				LeadingContext:  1,
@@ -118,10 +118,10 @@ func TestParseTextChunk(t *testing.T) {
 				OldLines: 4,
 				NewLines: 2,
 				Lines: []Line{
-					{OpContext, "context line\n"},
-					{OpDelete, "old line 1\n"},
-					{OpDelete, "old line 2\n"},
-					{OpContext, "context line\n"},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 1, NewLineNo: 1},
+					{Op: OpDelete, Line: "old line 1\n", OldLineNo: 2, NewLineNo: 0},
+					{Op: OpDelete, Line: "old line 2\n", OldLineNo: 3, NewLineNo: 0},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 4, NewLineNo: 2},
 				},
 				LinesDeleted:    2,
 				LeadingContext:  1,
@@ -142,10 +142,10 @@ func TestParseTextChunk(t *testing.T) {
 				OldLines: 3,
 				NewLines: 3,
 				Lines: []Line{
-					{OpContext, "context line\n"},
-					{OpDelete, "old line 1\n"},
-					{OpAdd, "new line 1\n"},
-					{OpContext, "context line\n"},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 1, NewLineNo: 1},
+					{Op: OpDelete, Line: "old line 1\n", OldLineNo: 2, NewLineNo: 0},
+					{Op: OpAdd, Line: "new line 1\n", OldLineNo: 0, NewLineNo: 2},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 3, NewLineNo: 3},
 				},
 				LinesDeleted:    1,
 				LinesAdded:      1,
@@ -168,11 +168,11 @@ func TestParseTextChunk(t *testing.T) {
 				OldLines: 4,
 				NewLines: 4,
 				Lines: []Line{
-					{OpContext, "context line\n"},
-					{OpDelete, "old line 1\n"},
-					{OpContext, "context line\n"},
-					{OpAdd, "new line 1\n"},
-					{OpContext, "context line\n"},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 1, NewLineNo: 1},
+					{Op: OpDelete, Line: "old line 1\n", OldLineNo: 2, NewLineNo: 0},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 3, NewLineNo: 2},
+					{Op: OpAdd, Line: "new line 1\n", OldLineNo: 0, NewLineNo: 3},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 4, NewLineNo: 4},
 				},
 				LinesDeleted:    1,
 				LinesAdded:      1,
@@ -194,9 +194,9 @@ func TestParseTextChunk(t *testing.T) {
 				OldLines: 2,
 				NewLines: 2,
 				Lines: []Line{
-					{OpContext, "context line\n"},
-					{OpDelete, "old line 1\n"},
-					{OpAdd, "new line 1"},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 1, NewLineNo: 1},
+					{Op: OpDelete, Line: "old line 1\n", OldLineNo: 2, NewLineNo: 0},
+					{Op: OpAdd, Line: "new line 1", OldLineNo: 0, NewLineNo: 2},
 				},
 				LinesDeleted:   1,
 				LinesAdded:     1,
@@ -217,9 +217,9 @@ func TestParseTextChunk(t *testing.T) {
 				OldLines: 2,
 				NewLines: 2,
 				Lines: []Line{
-					{OpContext, "context line\n"},
-					{OpDelete, "old line 1"},
-					{OpAdd, "new line 1\n"},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 1, NewLineNo: 1},
+					{Op: OpDelete, Line: "old line 1", OldLineNo: 2, NewLineNo: 0},
+					{Op: OpAdd, Line: "new line 1\n", OldLineNo: 0, NewLineNo: 2},
 				},
 				LinesDeleted:   1,
 				LinesAdded:     1,
@@ -239,9 +239,9 @@ func TestParseTextChunk(t *testing.T) {
 				OldLines: 0,
 				NewLines: 3,
 				Lines: []Line{
-					{OpAdd, "new line 1\n"},
-					{OpAdd, "new line 2\n"},
-					{OpAdd, "new line 3\n"},
+					{Op: OpAdd, Line: "new line 1\n", OldLineNo: 0, NewLineNo: 1},
+					{Op: OpAdd, Line: "new line 2\n", OldLineNo: 0, NewLineNo: 2},
+					{Op: OpAdd, Line: "new line 3\n", OldLineNo: 0, NewLineNo: 3},
 				},
 				LinesAdded: 3,
 			},
@@ -259,9 +259,9 @@ func TestParseTextChunk(t *testing.T) {
 				OldLines: 3,
 				NewLines: 0,
 				Lines: []Line{
-					{OpDelete, "old line 1\n"},
-					{OpDelete, "old line 2\n"},
-					{OpDelete, "old line 3\n"},
+					{Op: OpDelete, Line: "old line 1\n", OldLineNo: 1, NewLineNo: 0},
+					{Op: OpDelete, Line: "old line 2\n", OldLineNo: 2, NewLineNo: 0},
+					{Op: OpDelete, Line: "old line 3\n", OldLineNo: 3, NewLineNo: 0},
 				},
 				LinesDeleted: 3,
 			},
@@ -280,10 +280,10 @@ func TestParseTextChunk(t *testing.T) {
 				OldLines: 3,
 				NewLines: 4,
 				Lines: []Line{
-					{OpContext, "context line\n"},
-					{OpContext, "\n"},
-					{OpAdd, "new line\n"},
-					{OpContext, "context line\n"},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 1, NewLineNo: 1},
+					{Op: OpContext, Line: "\n", OldLineNo: 2, NewLineNo: 2},
+					{Op: OpAdd, Line: "new line\n", OldLineNo: 0, NewLineNo: 3},
+					{Op: OpContext, Line: "context line\n", OldLineNo: 3, NewLineNo: 4},
 				},
 				LinesAdded:      1,
 				LeadingContext:  2,
@@ -354,7 +354,7 @@ func TestParseTextChunk(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(test.Output, &frag) {
-				t.Errorf("incorrect fragment\nexpected: %+v\nactual: %+v", test.Output, &frag)
+				t.Errorf("incorrect fragment\nexpected: %#v\nactual: %#v", test.Output, &frag)
 			}
 		})
 	}
@@ -392,9 +392,9 @@ func TestParseTextFragments(t *testing.T) {
 					NewPosition: 1,
 					NewLines:    2,
 					Lines: []Line{
-						{OpContext, "context line\n"},
-						{OpDelete, "old line 1\n"},
-						{OpContext, "context line\n"},
+						{Op: OpContext, Line: "context line\n", OldLineNo: 1, NewLineNo: 1},
+						{Op: OpDelete, Line: "old line 1\n", OldLineNo: 2, NewLineNo: 0},
+						{Op: OpContext, Line: "context line\n", OldLineNo: 3, NewLineNo: 2},
 					},
 					LinesDeleted:    1,
 					LeadingContext:  1,
@@ -406,10 +406,10 @@ func TestParseTextFragments(t *testing.T) {
 					NewPosition: 7,
 					NewLines:    3,
 					Lines: []Line{
-						{OpContext, "context line\n"},
-						{OpDelete, "old line 2\n"},
-						{OpAdd, "new line 1\n"},
-						{OpContext, "context line\n"},
+						{Op: OpContext, Line: "context line\n", OldLineNo: 8, NewLineNo: 7},
+						{Op: OpDelete, Line: "old line 2\n", OldLineNo: 9, NewLineNo: 0},
+						{Op: OpAdd, Line: "new line 1\n", OldLineNo: 0, NewLineNo: 8},
+						{Op: OpContext, Line: "context line\n", OldLineNo: 10, NewLineNo: 9},
 					},
 					LinesDeleted:    1,
 					LinesAdded:      1,
@@ -422,11 +422,11 @@ func TestParseTextFragments(t *testing.T) {
 					NewPosition: 14,
 					NewLines:    4,
 					Lines: []Line{
-						{OpContext, "context line\n"},
-						{OpDelete, "old line 3\n"},
-						{OpAdd, "new line 2\n"},
-						{OpAdd, "new line 3\n"},
-						{OpContext, "context line\n"},
+						{Op: OpContext, Line: "context line\n", OldLineNo: 15, NewLineNo: 14},
+						{Op: OpDelete, Line: "old line 3\n", OldLineNo: 16, NewLineNo: 0},
+						{Op: OpAdd, Line: "new line 2\n", OldLineNo: 0, NewLineNo: 15},
+						{Op: OpAdd, Line: "new line 3\n", OldLineNo: 0, NewLineNo: 16},
+						{Op: OpContext, Line: "context line\n", OldLineNo: 17, NewLineNo: 17},
 					},
 					LinesDeleted:    1,
 					LinesAdded:      2,
@@ -480,7 +480,7 @@ func TestParseTextFragments(t *testing.T) {
 
 			for i, frag := range test.Fragments {
 				if !reflect.DeepEqual(frag, file.TextFragments[i]) {
-					t.Errorf("incorrect fragment at position %d\nexpected: %+v\nactual: %+v", i, frag, file.TextFragments[i])
+					t.Errorf("incorrect fragment at position %d\nexpected: %#v\nactual: %#v", i, frag, file.TextFragments[i])
 				}
 			}
 		})
