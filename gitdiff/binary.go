@@ -56,7 +56,11 @@ func (p *parser) ParseBinaryMarker() (isBinary bool, hasData bool, err error) {
 	case "Binary files differ\n":
 	case "Files differ\n":
 	default:
-		return false, false, nil
+		if strings.HasPrefix(p.Line(0), "Binary files") && strings.HasSuffix(p.Line(0), "differ\n") {
+			// for some git version, it comes as "Binary files {filepath} differ\n"
+		} else {
+			return false, false, nil
+		}
 	}
 
 	if err = p.Next(); err != nil && err != io.EOF {
