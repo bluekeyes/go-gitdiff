@@ -31,6 +31,7 @@ func TestFormatRoundtrip(t *testing.T) {
 		// data is slightly different when re-encoded by Go.
 		{File: "binary_modify.patch", SkipTextCompare: true},
 		{File: "binary_new.patch", SkipTextCompare: true},
+		{File: "binary_modify_nodata.patch"},
 	}
 
 	for _, patch := range patches {
