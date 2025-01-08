@@ -25,6 +25,16 @@ func TestParseBinaryMarker(t *testing.T) {
 			IsBinary: true,
 			HasData:  false,
 		},
+		"binaryFileNoPatchPaths": {
+			Input:    "Binary files a/foo.bin and b/foo.bin differ\n",
+			IsBinary: true,
+			HasData:  false,
+		},
+		"fileNoPatch": {
+			Input:    "Files differ\n",
+			IsBinary: true,
+			HasData:  false,
+		},
 		"textFile": {
 			Input:    "@@ -10,14 +22,31 @@\n",
 			IsBinary: false,
