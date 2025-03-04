@@ -7,7 +7,7 @@ diff --git a/gitdiff/testdata/apply/file_text.src b/gitdiff/testdata/apply/file_
  this is line 2
  this is line 3
  this is line 4
-@@ -17,10 +17,10 @@ this is line 16
+@@ -17,10 +17,10 @@
  this is line 17
  this is line 18
  this is line 19
@@ -20,7 +20,7 @@ diff --git a/gitdiff/testdata/apply/file_text.src b/gitdiff/testdata/apply/file_
  this is line 24
  this is line 25
  this is line 26
-@@ -53,10 +53,10 @@ this is line 52
+@@ -53,10 +53,10 @@
  this is line 53
  this is line 54
  this is line 55
@@ -35,7 +35,7 @@ diff --git a/gitdiff/testdata/apply/file_text.src b/gitdiff/testdata/apply/file_
  this is line 60
  this is line 61
  this is line 62
-@@ -130,8 +130,8 @@ this is line 129
+@@ -130,8 +130,8 @@
  this is line 130
  this is line 131
  this is line 132
@@ -46,7 +46,7 @@ diff --git a/gitdiff/testdata/apply/file_text.src b/gitdiff/testdata/apply/file_
  this is line 135
  this is line 136
  this is line 137
-@@ -161,12 +161,7 @@ this is line 160
+@@ -161,12 +161,7 @@
  this is line 161
  this is line 162
  this is line 163
@@ -60,3 +60,10 @@ diff --git a/gitdiff/testdata/apply/file_text.src b/gitdiff/testdata/apply/file_
  this is line 170
  this is line 171
  this is line 172
+@@ -197,4 +192,4 @@
+ this is line 197
+ this is line 198
+ this is line 199
+-this is line 200
++this is line 200
+\ No newline at end of file
