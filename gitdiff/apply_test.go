@@ -22,6 +22,7 @@ func TestApplyTextFragment(t *testing.T) {
 		"changeStart":       {Files: getApplyFiles("text_fragment_change_start")},
 		"changeMiddle":      {Files: getApplyFiles("text_fragment_change_middle")},
 		"changeEnd":         {Files: getApplyFiles("text_fragment_change_end")},
+		"changeEndEOL":      {Files: getApplyFiles("text_fragment_change_end_eol")},
 		"changeExact":       {Files: getApplyFiles("text_fragment_change_exact")},
 		"changeSingleNoEOL": {Files: getApplyFiles("text_fragment_change_single_noeol")},
 
