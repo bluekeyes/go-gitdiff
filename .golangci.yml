@@ -1,50 +1,51 @@
+version: "2"
+
 run:
   tests: false
 
 linters:
-  disable-all: true
+  default: none
   enable:
     - errcheck
-    - gofmt
-    - goimports
     - govet
     - ineffassign
     - misspell
     - revive
-    - typecheck
     - unconvert
     - unused
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*github.com/bluekeyes/go-gitdiff/gitdiff.formatter).Write
+        - (*github.com/bluekeyes/go-gitdiff/gitdiff.formatter).WriteString
+        - (*github.com/bluekeyes/go-gitdiff/gitdiff.formatter).WriteByte
+        - fmt.Fprintf(*github.com/bluekeyes/go-gitdiff/gitdiff.formatter)
+    revive:
+      rules:
+        - name: context-keys-type
+        - name: time-naming
+        - name: var-declaration
+        - name: unexported-return
+        - name: errorf
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: increment-decrement
+        - name: var-naming
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: indent-error-flow
 
-issues:
-  exclude-use-default: false
-
-linters-settings:
-  errcheck:
-    exclude-functions:
-      - (*github.com/bluekeyes/go-gitdiff/gitdiff.formatter).Write
-      - (*github.com/bluekeyes/go-gitdiff/gitdiff.formatter).WriteString
-      - (*github.com/bluekeyes/go-gitdiff/gitdiff.formatter).WriteByte
-      - fmt.Fprintf(*github.com/bluekeyes/go-gitdiff/gitdiff.formatter)
-  goimports:
-    local-prefixes: github.com/bluekeyes/go-gitdiff
-  revive:
-    rules:
-      # enable all rules from golint
-      - name: context-keys-type
-      - name: time-naming
-      - name: var-declaration
-      - name: unexported-return
-      - name: errorf
-      - name: blank-imports
-      - name: context-as-argument
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: increment-decrement
-      - name: var-naming
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: indent-error-flow
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/bluekeyes/go-gitdiff
