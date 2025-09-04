@@ -1,6 +1,7 @@
 package gitdiff
 
 import (
+	"errors"
 	"io"
 )
 
@@ -85,6 +86,11 @@ func (a *TextApplier) ApplyFragment(f *TextFragment) error {
 	preimage := make([][]byte, fragEnd-start)
 	n, err := a.lineSrc.ReadLinesAt(preimage, start)
 	if err != nil {
+		// an EOF indicates that source file is shorter than the patch expects,
+		// which should be reported as a conflict rather than a generic error
+		if errors.Is(err, io.EOF) {
+			err = &Conflict{"src has fewer lines than required by fragment"}
+		}
 		return applyError(err, lineNum(start+int64(n)))
 	}
 
