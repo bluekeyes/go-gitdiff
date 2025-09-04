@@ -31,14 +31,14 @@ func TestApplyTextFragment(t *testing.T) {
 				Src:   "text_fragment_error.src",
 				Patch: "text_fragment_error_short_src_before.patch",
 			},
-			Err: io.ErrUnexpectedEOF,
+			Err: &Conflict{},
 		},
 		"errorShortSrc": {
 			Files: applyFiles{
 				Src:   "text_fragment_error.src",
 				Patch: "text_fragment_error_short_src.patch",
 			},
-			Err: io.ErrUnexpectedEOF,
+			Err: &Conflict{},
 		},
 		"errorContextConflict": {
 			Files: applyFiles{
