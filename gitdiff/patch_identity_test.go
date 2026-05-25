@@ -8,7 +8,7 @@ func TestParsePatchIdentity(t *testing.T) {
 	tests := map[string]struct {
 		Input  string
 		Output PatchIdentity
-		Err    interface{}
+		Err    any
 	}{
 		"simple": {
 			Input: "Morton Haypenny <mhaypenny@example.com>",

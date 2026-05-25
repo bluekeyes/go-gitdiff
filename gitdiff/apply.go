@@ -61,7 +61,7 @@ type fragLineNum int
 
 // applyError creates a new *ApplyError wrapping err or augments the information
 // in err with args if it is already an *ApplyError. Returns nil if err is nil.
-func applyError(err error, args ...interface{}) error {
+func applyError(err error, args ...any) error {
 	if err == nil {
 		return nil
 	}
