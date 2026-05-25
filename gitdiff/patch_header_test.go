@@ -11,7 +11,7 @@ func TestParsePatchDate(t *testing.T) {
 	tests := map[string]struct {
 		Input  string
 		Output time.Time
-		Err    interface{}
+		Err    any
 	}{
 		"default": {
 			Input:  "Thu Apr 9 01:07:06 2020 -0700",
@@ -88,7 +88,7 @@ func TestParsePatchHeader(t *testing.T) {
 		Input   string
 		Options []PatchHeaderOption
 		Header  PatchHeader
-		Err     interface{}
+		Err     any
 	}{
 		"prettyShort": {
 			Input: `commit 61f5cd90bed4d204ee3feb3aa41ee91d4734855b

@@ -165,7 +165,7 @@ func TestApplyFile(t *testing.T) {
 
 type applyTest struct {
 	Files applyFiles
-	Err   interface{}
+	Err   any
 }
 
 func (at applyTest) run(t *testing.T, apply func(io.Writer, io.ReaderAt, *File) error) {

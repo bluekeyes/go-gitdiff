@@ -87,7 +87,7 @@ func TestLineReaderAt(t *testing.T) {
 
 			output := make([][]byte, test.Count)
 			for i := 0; i < test.Count; i++ {
-				output[i] = []byte(fmt.Sprintf(lineTemplate, test.Offset+int64(i)))
+				output[i] = fmt.Appendf(nil, lineTemplate, test.Offset+int64(i))
 			}
 
 			r := &lineReaderAt{r: bytes.NewReader(input.Bytes())}
