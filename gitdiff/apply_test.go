@@ -40,6 +40,20 @@ func TestApplyTextFragment(t *testing.T) {
 			},
 			Err: &Conflict{},
 		},
+		"errorShortSrcExtreme": {
+			Files: applyFiles{
+				Src:   "text_fragment_error.src",
+				Patch: "text_fragment_error_short_src_extreme.patch",
+			},
+			Err: &Conflict{},
+		},
+		"errorOverflow": {
+			Files: applyFiles{
+				Src:   "text_fragment_error.src",
+				Patch: "text_fragment_error_overflow.patch",
+			},
+			Err: "overflow",
+		},
 		"errorContextConflict": {
 			Files: applyFiles{
 				Src:   "text_fragment_error.src",

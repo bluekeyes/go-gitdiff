@@ -7,6 +7,8 @@ import (
 )
 
 func assertError(t *testing.T, expected any, actual error, action string) {
+	t.Helper()
+
 	if actual == nil {
 		t.Fatalf("expected error %s, but got nil", action)
 	}
