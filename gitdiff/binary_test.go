@@ -1,6 +1,7 @@
 package gitdiff
 
 import (
+	"bytes"
 	"encoding/binary"
 	"io"
 	"reflect"
@@ -122,6 +123,11 @@ func TestParseBinaryFragmentHeader(t *testing.T) {
 }
 
 func TestParseBinaryChunk(t *testing.T) {
+	// NOTE: input data in this test is encoded correctly but is not valid
+	// binary patch content because it is not compressed with zlib. This is not
+	// relevant for the logic under test, but means tests must not call Data()
+	// on the parsed fragments.
+
 	tests := map[string]struct {
 		Input    string
 		Fragment BinaryFragment
@@ -129,16 +135,17 @@ func TestParseBinaryChunk(t *testing.T) {
 		Err      string
 	}{
 		"singleline": {
-			Input: "TcmZQzU|?i`U?w2V48*Je09XJG\n\n",
+			Input: "T0000100001000020000300005\n\n",
 			Fragment: BinaryFragment{
 				Size: 20,
 			},
 			Output: fib(5, binary.BigEndian),
 		},
 		"multiline": {
-			Input: "zcmZQzU|?i`U?w2V48*KJ%mKu_Kr9NxN<eH5#F0Qe0f=7$l~*z_FeL$%-)3N7vt?l5\n" +
-				"zl3-vE2xVZ9%4J~CI>f->s?WfX|B-=Vs{#X~svra7Ekg#T|4s}nH;WnAZ)|1Y*`&cB\n" +
-				"s(sh?X(Uz6L^!Ou&aF*u`J!eibJifSrv0z>$Q%Hd(^HIJ<Y?5`S0gT5UE&u=k\n\n",
+			Input: "z0000100001000020000300005000080000D0000L0000Y0000t000140001x0002#\n" +
+				"z0004b0007F000Bq000I(000UY000nG000_o001h&002cV003|C006Zh00AWt00G)D\n" +
+				"z00RF)00h}{00-E$01UDy02GSd03kgE05!+r09OR(0F2DZ0OQfH0dSsq0#tA*1H}%a\n" +
+				"D1{r?K\n\n",
 			Fragment: BinaryFragment{
 				Size: 160,
 			},
@@ -161,23 +168,12 @@ func TestParseBinaryChunk(t *testing.T) {
 			Err:   "incorrect byte count",
 		},
 		"invalidEncoding": {
-			Input: "TcmZQzU|?i'U?w2V48*Je09XJG\n",
+			Input: "T00001000010\"0020000300005\n\n",
 			Err:   "invalid base85 byte",
 		},
 		"noTrailingEmptyLine": {
-			Input: "TcmZQzU|?i`U?w2V48*Je09XJG\n",
+			Input: "T0000100001000020000300005\n",
 			Err:   "unexpected EOF",
-		},
-		"invalidCompression": {
-			Input: "F007GV%KiWV\n\n",
-			Err:   "zlib",
-		},
-		"incorrectSize": {
-			Input: "TcmZQzU|?i`U?w2V48*Je09XJG\n\n",
-			Fragment: BinaryFragment{
-				Size: 16,
-			},
-			Err: "16 byte fragment inflated to 20",
 		},
 	}
 
@@ -196,14 +192,19 @@ func TestParseBinaryChunk(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error parsing binary chunk: %v", err)
 			}
-			if !reflect.DeepEqual(test.Output, frag.Data) {
-				t.Errorf("incorrect binary chunk\nexpected: %+v\n  actual: %+v", test.Output, frag.Data)
+			if !bytes.Equal(test.Output, frag.RawData) {
+				t.Errorf("incorrect binary chunk\nexpected: %+v (len=%d)\n  actual: %+v (len=%d)", test.Output, len(test.Output), frag.RawData, len(frag.RawData))
 			}
 		})
 	}
 }
 
 func TestParseBinaryFragments(t *testing.T) {
+	// NOTE: input data in this test is encoded correctly but is not valid
+	// binary patch content because it is not compressed with zlib. This is not
+	// relevant for the logic under test, but means tests must not call Data()
+	// on the parsed fragments.
+
 	tests := map[string]struct {
 		Input string
 		File  File
@@ -216,35 +217,35 @@ func TestParseBinaryFragments(t *testing.T) {
 		"dataWithReverse": {
 			Input: `GIT binary patch
 literal 40
-gcmZQzU|?i` + "`" + `U?w2V48*KJ%mKu_Kr9NxN<eH500b)lkN^Mx
+n001h&002cV003|C006Zh00AWt00G)D00RF)00h}{00-E$01UDy
 
-literal 0
-HcmV?d00001
+literal 4
+D00001
 
 `,
 			Binary: true,
 			Fragment: &BinaryFragment{
-				Method: BinaryPatchLiteral,
-				Size:   40,
-				Data:   fib(10, binary.BigEndian),
+				Method:  BinaryPatchLiteral,
+				Size:    40,
+				RawData: fibSlice(20, 30, binary.BigEndian),
 			},
 			ReverseFragment: &BinaryFragment{
-				Method: BinaryPatchLiteral,
-				Size:   0,
-				Data:   []byte{},
+				Method:  BinaryPatchLiteral,
+				Size:    4,
+				RawData: fib(1, binary.BigEndian),
 			},
 		},
 		"dataWithoutReverse": {
 			Input: `GIT binary patch
 literal 40
-gcmZQzU|?i` + "`" + `U?w2V48*KJ%mKu_Kr9NxN<eH500b)lkN^Mx
+n001h&002cV003|C006Zh00AWt00G)D00RF)00h}{00-E$01UDy
 
 `,
 			Binary: true,
 			Fragment: &BinaryFragment{
-				Method: BinaryPatchLiteral,
-				Size:   40,
-				Data:   fib(10, binary.BigEndian),
+				Method:  BinaryPatchLiteral,
+				Size:    40,
+				RawData: fibSlice(20, 30, binary.BigEndian),
 			},
 		},
 		"noData": {
@@ -273,10 +274,10 @@ TcmZQzU|?i'U?w2V48*Je09XJG
 		"invalidReverseData": {
 			Input: `GIT binary patch
 literal 20
-TcmZQzU|?i` + "`" + `U?w2V48*Je09XJG
+T00001000010"0020000300005
 
-literal 0
-zcmV?d00001
+literal 4
+z00001
 
 `,
 			Err: true,
@@ -309,6 +310,11 @@ zcmV?d00001
 			}
 		})
 	}
+}
+
+func fibSlice(start, end int, ord binary.ByteOrder) []byte {
+	buf := fib(end, ord)
+	return buf[4*start:]
 }
 
 func fib(n int, ord binary.ByteOrder) []byte {

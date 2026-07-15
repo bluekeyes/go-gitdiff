@@ -11,8 +11,7 @@ import (
 
 func TestFormatRoundtrip(t *testing.T) {
 	patches := []struct {
-		File            string
-		SkipTextCompare bool
+		File string
 	}{
 		{File: "copy.patch"},
 		{File: "copy_modify.patch"},
@@ -25,12 +24,8 @@ func TestFormatRoundtrip(t *testing.T) {
 		{File: "new_mode.patch"},
 		{File: "rename.patch"},
 		{File: "rename_modify.patch"},
-
-		// Due to differences between Go's 'encoding/zlib' package and the zlib
-		// C library, binary patches cannot be compared directly as the patch
-		// data is slightly different when re-encoded by Go.
-		{File: "binary_modify.patch", SkipTextCompare: true},
-		{File: "binary_new.patch", SkipTextCompare: true},
+		{File: "binary_modify.patch"},
+		{File: "binary_new.patch"},
 		{File: "binary_modify_nodata.patch"},
 	}
 
@@ -44,10 +39,8 @@ func TestFormatRoundtrip(t *testing.T) {
 			original := assertParseSingleFile(t, b, "patch")
 			str := original.String()
 
-			if !patch.SkipTextCompare {
-				if string(b) != str {
-					t.Errorf("incorrect patch text\nexpected: %q\n  actual: %q\n", string(b), str)
-				}
+			if string(b) != str {
+				t.Errorf("incorrect patch text\nexpected: %q\n  actual: %q\n", string(b), str)
 			}
 
 			reparsed := assertParseSingleFile(t, []byte(str), "formatted patch")
@@ -123,8 +116,8 @@ func assertFilesEqual(t *testing.T, expected, actual *File) {
 			assertEqual(t, ef.Method, af.Method, "BinaryFragment.Method")
 			assertEqual(t, ef.Size, af.Size, "BinaryFragment.Size")
 
-			if !slices.Equal(ef.Data, af.Data) {
-				t.Errorf("BinaryFragment.Data: expected %#v, actual %#v", ef.Data, af.Data)
+			if !slices.Equal(ef.RawData, af.RawData) {
+				t.Errorf("BinaryFragment.RawData: expected %#v, actual %#v", ef.RawData, af.RawData)
 			}
 		}
 	} else if actual.BinaryFragment != nil {
@@ -141,8 +134,8 @@ func assertFilesEqual(t *testing.T, expected, actual *File) {
 			assertEqual(t, ef.Method, af.Method, "ReverseBinaryFragment.Method")
 			assertEqual(t, ef.Size, af.Size, "ReverseBinaryFragment.Size")
 
-			if !slices.Equal(ef.Data, af.Data) {
-				t.Errorf("ReverseBinaryFragment.Data: expected %#v, actual %#v", ef.Data, af.Data)
+			if !slices.Equal(ef.RawData, af.RawData) {
+				t.Errorf("ReverseBinaryFragment.RawData: expected %#v, actual %#v", ef.RawData, af.RawData)
 			}
 		}
 	} else if actual.ReverseBinaryFragment != nil {
