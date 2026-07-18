@@ -10,49 +10,20 @@ package main
 import (
 	"bytes"
 	"compress/zlib"
-	"encoding/binary"
+	"encoding/hex"
 	"flag"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
-	"strings"
+	"unicode"
 
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
 )
 
-var (
-	b85Powers = []uint32{52200625, 614125, 7225, 85, 1}
-	b85Alpha  = []byte(
-		"0123456789" + "ABCDEFGHIJKLMNOPQRSTUVWXYZ" + "abcdefghijklmnopqrstuvwxyz" + "!#$%&()*+-;<=>?@^_`{|}~",
-	)
-)
-
 var mode string
 var compression bool
-
-func base85Encode(data []byte) []byte {
-	chunks, remaining := len(data)/4, len(data)%4
-	if remaining > 0 {
-		data = append(data, make([]byte, 4-remaining)...)
-		chunks++
-	}
-
-	var n int
-	out := make([]byte, 5*chunks)
-
-	for i := 0; i < len(data); i += 4 {
-		v := binary.BigEndian.Uint32(data[i : i+4])
-		for j := 0; j < 5; j++ {
-			p := v / b85Powers[j]
-			out[n+j] = b85Alpha[p]
-			v -= b85Powers[j] * p
-		}
-		n += 5
-	}
-
-	return out
-}
+var hexInput bool
+var method string
 
 func compress(data []byte) ([]byte, error) {
 	var b bytes.Buffer
@@ -68,29 +39,11 @@ func compress(data []byte) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func wrap(data []byte) string {
-	var s strings.Builder
-	for i := 0; i < len(data); i += 52 {
-		c := 52
-		if c > len(data)-i {
-			c = len(data) - i
-		}
-		b := (c / 5) * 4
-
-		if b <= 26 {
-			s.WriteByte(byte('A' + b - 1))
-		} else {
-			s.WriteByte(byte('a' + b - 27))
-		}
-		s.Write(data[i : i+c])
-		s.WriteByte('\n')
-	}
-	return s.String()
-}
-
 func init() {
 	flag.StringVar(&mode, "mode", "parse", "operation mode, one of 'parse' or 'encode'")
 	flag.BoolVar(&compression, "compression", true, "if true, decompress data in 'parse' mode and compress it in 'encode' mode")
+	flag.BoolVar(&hexInput, "hex", false, "in encode mode, treat the input as a hexidecimal string (removing whitespace and comments)")
+	flag.StringVar(&method, "method", "literal", "in encode mode, the method of the binary fragment, one of 'literal' or 'delta'")
 }
 
 func main() {
@@ -121,19 +74,65 @@ func main() {
 		}
 
 	case "encode":
-		data, err := ioutil.ReadAll(os.Stdin)
+		var frag gitdiff.BinaryFragment
+		switch method {
+		case "literal":
+			frag.Method = gitdiff.BinaryPatchLiteral
+		case "delta":
+			frag.Method = gitdiff.BinaryPatchDelta
+		default:
+			log.Fatalf("invalid method: %s", method)
+		}
+
+		data, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			log.Fatalf("failed to read input: %v", err)
 		}
+
+		if hexInput {
+			data, err = decodeHexInput(data)
+			if err != nil {
+				log.Fatalf("input contains invalid hex data: %v", err)
+			}
+		}
+
+		// Size is always for the uncompressed data, set it before compressing
+		frag.Size = int64(len(data))
+
 		if compression {
 			data, err = compress(data)
 			if err != nil {
 				log.Fatalf("failed to compress data: %v", err)
 			}
 		}
-		os.Stdout.WriteString(wrap(base85Encode(data)))
+
+		frag.RawData = data
+		os.Stdout.WriteString(frag.String())
 
 	default:
 		log.Fatalf("unknown mode: %s", mode)
 	}
+}
+
+func decodeHexInput(input []byte) ([]byte, error) {
+	var err error
+	var data []byte
+	for line := range bytes.Lines(input) {
+		line := bytes.Map(dropSpaces, line)
+		if len(line) == 0 || line[0] == '#' {
+			continue
+		}
+		data, err = hex.AppendDecode(data, line)
+		if err != nil {
+			return data, err
+		}
+	}
+	return data, nil
+}
+
+func dropSpaces(r rune) rune {
+	if unicode.IsSpace(r) {
+		return -1
+	}
+	return r
 }

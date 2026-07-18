@@ -17,6 +17,7 @@ type TextApplier struct {
 	src      io.ReaderAt
 	lineSrc  LineReaderAt
 	nextLine int64
+	opts     applyOptions
 
 	closed bool
 	dirty  bool
@@ -24,10 +25,11 @@ type TextApplier struct {
 
 // NewTextApplier creates a TextApplier that reads data from src and writes
 // modified data to dst. If src implements LineReaderAt, it is used directly.
-func NewTextApplier(dst io.Writer, src io.ReaderAt) *TextApplier {
+func NewTextApplier(dst io.Writer, src io.ReaderAt, opts ...ApplyOption) *TextApplier {
 	a := TextApplier{
-		dst: dst,
-		src: src,
+		dst:  dst,
+		src:  src,
+		opts: collectApplyOptions(opts),
 	}
 
 	if lineSrc, ok := src.(LineReaderAt); ok {

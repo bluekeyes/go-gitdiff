@@ -83,7 +83,7 @@ func TestApplyTextFragment(t *testing.T) {
 				if len(file.TextFragments) != 1 {
 					t.Fatalf("patch should contain exactly one fragment, but it has %d", len(file.TextFragments))
 				}
-				applier := NewTextApplier(dst, src)
+				applier := NewTextApplier(dst, src, test.Options...)
 				return applier.ApplyFragment(file.TextFragments[0])
 			})
 		})
@@ -97,6 +97,16 @@ func TestApplyBinaryFragment(t *testing.T) {
 		"deltaModify":      {Files: getApplyFiles("bin_fragment_delta_modify")},
 		"deltaModifyLarge": {Files: getApplyFiles("bin_fragment_delta_modify_large")},
 
+		"errorLiteralExceedsLimit": {
+			Files: applyFiles{
+				Src:   "bin_fragment_literal_create.src",
+				Patch: "bin_fragment_literal_error_limit.patch",
+			},
+			Options: []ApplyOption{
+				WithMaxBinaryFragmentBytes(200),
+			},
+			Err: "exceeds 200 byte limit",
+		},
 		"errorIncompleteAdd": {
 			Files: applyFiles{
 				Src:   "bin_fragment_delta_error.src",
@@ -111,26 +121,56 @@ func TestApplyBinaryFragment(t *testing.T) {
 			},
 			Err: "incomplete copy",
 		},
-		"errorSrcSize": {
+		"errorDeltaIncorrectSrcSize": {
 			Files: applyFiles{
 				Src:   "bin_fragment_delta_error.src",
 				Patch: "bin_fragment_delta_error_src_size.patch",
 			},
 			Err: &Conflict{},
 		},
-		"errorDstSize": {
+		"errorDeltaDstSizeShort": {
 			Files: applyFiles{
 				Src:   "bin_fragment_delta_error.src",
-				Patch: "bin_fragment_delta_error_dst_size.patch",
+				Patch: "bin_fragment_delta_error_dst_size_short.patch",
 			},
-			Err: "insufficient or extra data",
+			Err: "insufficient",
+		},
+		"errorDeltaDstSizeExceedsLimit": {
+			Files: applyFiles{
+				Src:   "bin_fragment_delta_error.src",
+				Patch: "bin_fragment_delta_error_dst_size_limit.patch",
+			},
+			Options: []ApplyOption{
+				WithMaxBinaryFragmentBytes(200),
+			},
+			Err: "exceeds 200 byte limit",
+		},
+		"errorDeltaExceedsLimitOnAdd": {
+			Files: applyFiles{
+				Src:   "bin_fragment_delta_error.src",
+				Patch: "bin_fragment_delta_error_limit_add.patch",
+			},
+			Options: []ApplyOption{
+				WithMaxBinaryFragmentBytes(1024),
+			},
+			Err: "extra data",
+		},
+		"errorDeltaExceedsLimitOnCopy": {
+			Files: applyFiles{
+				Src:   "bin_fragment_delta_error.src",
+				Patch: "bin_fragment_delta_error_limit_copy.patch",
+			},
+			Options: []ApplyOption{
+				WithMaxBinaryFragmentBytes(1024),
+			},
+			Err: "extra data",
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			test.run(t, func(dst io.Writer, src io.ReaderAt, file *File) error {
-				applier := NewBinaryApplier(dst, src)
+				applier := NewBinaryApplier(dst, src, test.Options...)
 				return applier.ApplyFragment(file.BinaryFragment)
 			})
 		})
@@ -171,15 +211,16 @@ func TestApplyFile(t *testing.T) {
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			test.run(t, func(dst io.Writer, src io.ReaderAt, file *File) error {
-				return Apply(dst, src, file)
+				return Apply(dst, src, file, test.Options...)
 			})
 		})
 	}
 }
 
 type applyTest struct {
-	Files applyFiles
-	Err   any
+	Files   applyFiles
+	Options []ApplyOption
+	Err     any
 }
 
 func (at applyTest) run(t *testing.T, apply func(io.Writer, io.ReaderAt, *File) error) {
