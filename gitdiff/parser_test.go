@@ -2,7 +2,6 @@ package gitdiff
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"io"
 	"os"
@@ -454,12 +453,20 @@ Date:   Tue Apr 2 22:55:40 2019 -0700
 					BinaryFragment: &BinaryFragment{
 						Method: BinaryPatchLiteral,
 						Size:   40,
-						Data:   fib(10, binary.BigEndian),
+						RawData: []byte{
+							// Literal data as compressed and base85 encoded by Git
+							0x78, 0x01, 0x63, 0x60, 0x60, 0x60, 0x64, 0x80, 0x60, 0x26, 0x20,
+							0xcd, 0x0c, 0xc4, 0xac, 0x40, 0xcc, 0x01, 0xc4, 0xbc, 0x40, 0x2c,
+							0x0a, 0xc4, 0x4a, 0x40, 0x6c, 0x0e, 0x00, 0x04, 0x2b, 0x00, 0x90,
+						},
 					},
 					ReverseBinaryFragment: &BinaryFragment{
 						Method: BinaryPatchLiteral,
 						Size:   0,
-						Data:   []byte{},
+						RawData: []byte{
+							// Literal data as compressed and base85 encoded by Git
+							0x78, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00, 0x01,
+						},
 					},
 				},
 			},

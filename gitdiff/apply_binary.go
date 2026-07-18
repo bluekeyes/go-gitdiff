@@ -49,11 +49,15 @@ func (a *BinaryApplier) ApplyFragment(f *BinaryFragment) error {
 
 	switch f.Method {
 	case BinaryPatchLiteral:
-		if _, err := a.dst.Write(f.Data); err != nil {
+		if _, err := io.Copy(a.dst, f.Data()); err != nil {
 			return applyError(err)
 		}
 	case BinaryPatchDelta:
-		if err := applyBinaryDeltaFragment(a.dst, a.src, f.Data); err != nil {
+		data, err := io.ReadAll(f.Data())
+		if err != nil {
+			return applyError(err)
+		}
+		if err := applyBinaryDeltaFragment(a.dst, a.src, data); err != nil {
 			return applyError(err)
 		}
 	default:
