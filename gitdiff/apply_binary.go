@@ -98,7 +98,7 @@ func applyBinaryDeltaFragment(dst io.Writer, src io.ReaderAt, frag []byte, limit
 		return err
 	}
 
-	// As a form of compression, delta instructures can create a lot of data in
+	// As a form of compression, delta instructions can create a lot of data in
 	// the destination from a small instruction set. First, check the expected
 	// size against the limit. Then, while executing instructions, stop as soon
 	// as a write exceeds the expected limit.
