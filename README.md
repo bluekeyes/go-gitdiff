@@ -103,3 +103,8 @@ The parsing code has also had a modest amount of fuzz testing.
 7. When parsing mail-formatted patch headers, leading and trailing whitespace
    is always removed from `Subject` lines. There is no exact equivalent to `git
    mailinfo -k`.
+
+8. When applying patches, the library enforces limits on binary patch sizes by
+   default that are not enforced by `git apply`. Clients may disable these
+   limits at the risk of allowing significant memory allocation when processing
+   untrusted patches.
