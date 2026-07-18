@@ -1,0 +1,18 @@
+# source size - 130 bytes
+82 01
+
+# result size - claimed 1024 bytes, actually 1100
+80 08
+
+# 11x delta copy operations of 100 bytes at offset 0
+90 64
+90 64
+90 64
+90 64
+90 64
+90 64
+90 64
+90 64
+90 64
+90 64
+90 64

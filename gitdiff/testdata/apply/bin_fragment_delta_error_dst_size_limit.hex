@@ -1,0 +1,9 @@
+# source size - 130 bytes
+82 01
+
+# result size - 260 bytes
+88 02
+
+# 8x delta copy operations of 130 bytes at offset 0
+90 82
+90 82
