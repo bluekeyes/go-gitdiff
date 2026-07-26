@@ -1,0 +1,7 @@
+diff --git a/gitdiff/testdata/apply/file_text_insert_zero_context.src b/gitdiff/testdata/apply/file_text_insert_zero_context.src
+--- a/gitdiff/testdata/apply/file_text_insert_zero_context.src
++++ b/gitdiff/testdata/apply/file_text_insert_zero_context.src
+@@ -0,0 +1 @@
++new line a
+@@ -6,0 +8 @@ line 6
++new line b
