@@ -19,6 +19,14 @@ func TestApplyTextFragment(t *testing.T) {
 		"addEnd":      {Files: getApplyFiles("text_fragment_add_end")},
 		"addEndNoEOL": {Files: getApplyFiles("text_fragment_add_end_noeol")},
 
+		// zero-context fragments: the old range is empty and OldPosition is the
+		// line the content follows, not the line it starts at
+		"insertStart":  {Files: getApplyFiles("text_fragment_insert_start")},
+		"insertMiddle": {Files: getApplyFiles("text_fragment_insert_middle")},
+		"insertEnd":    {Files: getApplyFiles("text_fragment_insert_end")},
+		"insertNoEOL":  {Files: getApplyFiles("text_fragment_insert_noeol")},
+		"deleteStart":  {Files: getApplyFiles("text_fragment_delete_start")},
+
 		"changeStart":       {Files: getApplyFiles("text_fragment_change_start")},
 		"changeMiddle":      {Files: getApplyFiles("text_fragment_change_middle")},
 		"changeEnd":         {Files: getApplyFiles("text_fragment_change_end")},
@@ -65,13 +73,6 @@ func TestApplyTextFragment(t *testing.T) {
 			Files: applyFiles{
 				Src:   "text_fragment_error.src",
 				Patch: "text_fragment_error_delete_conflict.patch",
-			},
-			Err: &Conflict{},
-		},
-		"errorNewFile": {
-			Files: applyFiles{
-				Src:   "text_fragment_error.src",
-				Patch: "text_fragment_error_new_file.patch",
 			},
 			Err: &Conflict{},
 		},
@@ -197,6 +198,19 @@ func TestApplyFile(t *testing.T) {
 			Files: applyFiles{
 				Src:   "file_text.src",
 				Patch: "file_text_error_partial_delete.patch",
+			},
+			Err: &Conflict{},
+		},
+		"textInsertZeroContext": {
+			Files: getApplyFiles("file_text_insert_zero_context"),
+		},
+		"textDeleteStartZeroContext": {
+			Files: getApplyFiles("file_text_delete_start"),
+		},
+		"textErrorNewNonEmpty": {
+			Files: applyFiles{
+				Src:   "file_text.src",
+				Patch: "file_text_error_new_non_empty.patch",
 			},
 			Err: &Conflict{},
 		},
