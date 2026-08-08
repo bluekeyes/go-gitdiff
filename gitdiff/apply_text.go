@@ -64,8 +64,13 @@ func (a *TextApplier) ApplyFragment(f *TextFragment) error {
 		return applyError(err)
 	}
 
-	// lines are 0-indexed, positions are 1-indexed (but new files have position = 0)
+	// lines are 0-indexed, positions are 1-indexed; a fragment with no old
+	// lines inserts after OldPosition instead of starting at it, so position 0
+	// inserts before the first line
 	fragStart := f.OldPosition - 1
+	if f.OldLines == 0 {
+		fragStart = f.OldPosition
+	}
 	if fragStart < 0 {
 		fragStart = 0
 	}
@@ -77,16 +82,6 @@ func (a *TextApplier) ApplyFragment(f *TextFragment) error {
 	start := a.nextLine
 	if fragStart < start {
 		return applyError(&Conflict{"fragment overlaps with an applied fragment"})
-	}
-
-	if f.OldPosition == 0 {
-		ok, err := isLen(a.src, 0)
-		if err != nil {
-			return applyError(err)
-		}
-		if !ok {
-			return applyError(&Conflict{"cannot create new file from non-empty src"})
-		}
 	}
 
 	preimage, err := readPreimage(a.lineSrc, start, fragEnd-start)
@@ -116,18 +111,21 @@ func (a *TextApplier) ApplyFragment(f *TextFragment) error {
 	}
 	a.nextLine = fragStart + used
 
-	// new position of +0,0 mean a full delete, so check for leftovers
-	if f.NewPosition == 0 && f.NewLines == 0 {
-		var b [1][]byte
-		n, err := a.lineSrc.ReadLinesAt(b[:], a.nextLine)
-		if err != nil && err != io.EOF {
-			return applyError(err, lineNum(a.nextLine))
-		}
-		if n > 0 {
-			return applyError(&Conflict{"src still has content after full delete"}, lineNum(a.nextLine))
-		}
-	}
+	return nil
+}
 
+// checkFullDelete returns a *Conflict if the source contains content that was
+// not consumed by the applied fragments. Deleting a file is a property of the
+// file header, so only [Apply] can decide when this check applies.
+func (a *TextApplier) checkFullDelete() error {
+	var b [1][]byte
+	n, err := a.lineSrc.ReadLinesAt(b[:], a.nextLine)
+	if err != nil && err != io.EOF {
+		return applyError(err, lineNum(a.nextLine))
+	}
+	if n > 0 {
+		return applyError(&Conflict{"src still has content after full delete"}, lineNum(a.nextLine))
+	}
 	return nil
 }
 

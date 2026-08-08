@@ -1,0 +1,8 @@
+diff --git a/gitdiff/testdata/apply/file_text.src b/gitdiff/testdata/apply/file_text.src
+new file mode 100644
+--- /dev/null
++++ b/gitdiff/testdata/apply/file_text.src
+@@ -0,0 +1,3 @@
++this is line 1
++this is line 2
++this is line 3

@@ -120,6 +120,19 @@ func Apply(dst io.Writer, src io.ReaderAt, f *File, opts ...ApplyOption) error {
 		return applier.Close()
 
 	case len(f.TextFragments) > 0:
+		// creating a file requires an empty source; a fragment starting at
+		// position 0 is not enough to detect this, as zero-context patches use
+		// the same position to insert before the first line of an existing file
+		if f.IsNew {
+			ok, err := isLen(src, 0)
+			if err != nil {
+				return applyError(err)
+			}
+			if !ok {
+				return applyError(&Conflict{"cannot create new file from non-empty src"})
+			}
+		}
+
 		frags := make([]*TextFragment, len(f.TextFragments))
 		copy(frags, f.TextFragments)
 
@@ -135,6 +148,14 @@ func Apply(dst io.Writer, src io.ReaderAt, f *File, opts ...ApplyOption) error {
 		for i, frag := range frags {
 			if err := applier.ApplyFragment(frag); err != nil {
 				return applyError(err, fragNum(i))
+			}
+		}
+		// deleting a file must consume the whole source; a fragment ending at
+		// new position 0 is not enough to detect this, as zero-context patches
+		// use the same position to delete the first line of a file
+		if f.IsDelete {
+			if err := applier.checkFullDelete(); err != nil {
+				return err
 			}
 		}
 		return applier.Close()

@@ -1,0 +1,5 @@
+diff --git a/gitdiff/testdata/apply/fragment_insert_noeol.src b/gitdiff/testdata/apply/fragment_insert_noeol.src
+--- a/gitdiff/testdata/apply/fragment_insert_noeol.src
++++ b/gitdiff/testdata/apply/fragment_insert_noeol.src
+@@ -1,0 +2 @@ line 1
++new line a
