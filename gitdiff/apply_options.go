@@ -9,6 +9,10 @@ const (
 
 type applyOptions struct {
 	maxBinaryFragmentBytes int64
+
+	// fuzz is the number of context lines that may differ from the source, or
+	// is negative to apply fragments in strict mode.
+	fuzz int
 }
 
 // An ApplyOption modifies the behavior of [TextApplier] and [BinaryApplier].
@@ -33,9 +37,30 @@ func WithMaxBinaryFragmentBytes(b int64) ApplyOption {
 	}
 }
 
+// WithFuzz enables non-strict application of text fragments. In non-strict
+// mode, a fragment may apply at a line offset from its recorded position: the
+// applier searches outward from the recorded position (adjusted by the offsets
+// of previously applied fragments) for a location where the fragment's context
+// and deleted lines match the source. This makes patches apply even when
+// unrelated edits above them have shifted line numbers, similar to git apply.
+//
+// The fuzz argument additionally allows up to fuzz lines of leading and
+// trailing context to differ from the source, like the fuzz factor of
+// patch(1). A fuzz of 0 still enables offset search but requires all context
+// and deleted lines to match exactly. Deleted lines are never fuzzed. Negative
+// values are treated as 0.
+//
+// Passing this option to [BinaryApplier] has no effect.
+func WithFuzz(fuzz int) ApplyOption {
+	return func(opts *applyOptions) {
+		opts.fuzz = max(fuzz, 0)
+	}
+}
+
 func collectApplyOptions(allOpts []ApplyOption) applyOptions {
 	opts := applyOptions{
 		maxBinaryFragmentBytes: defaultMaxBinaryFragmentBytes,
+		fuzz:                   -1,
 	}
 	for _, opt := range allOpts {
 		opt(&opts)

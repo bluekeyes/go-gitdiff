@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -206,6 +207,10 @@ func TestApplyFile(t *testing.T) {
 		"modeChange": {
 			Files: getApplyFiles("file_mode_change"),
 		},
+		"nonStrictMultiFragmentOffset": {
+			Files:   getApplyFiles("nonstrict_multi"),
+			Options: []ApplyOption{WithFuzz(0)},
+		},
 	}
 
 	for name, test := range tests {
@@ -215,6 +220,171 @@ func TestApplyFile(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestApplyTextFragmentNonStrict(t *testing.T) {
+	// All of these cases apply the same patch, which changes line 6 of a
+	// 10-line file, to sources where that content sits at a different line.
+	shifted := func(name string) applyFiles {
+		return applyFiles{
+			Src:   name + ".src",
+			Patch: "nonstrict_shift.patch",
+			Out:   name + ".out",
+		}
+	}
+
+	tests := map[string]applyTest{
+		"offsetForward": {
+			Files:   shifted("nonstrict_offset_forward"),
+			Options: []ApplyOption{WithFuzz(0)},
+		},
+		"offsetBackward": {
+			Files:   shifted("nonstrict_offset_backward"),
+			Options: []ApplyOption{WithFuzz(0)},
+		},
+		"fuzzLeadingContext": {
+			Files:   shifted("nonstrict_fuzz_leading"),
+			Options: []ApplyOption{WithFuzz(1)},
+		},
+		"errorFuzzTooLow": {
+			Files: applyFiles{
+				Src:   "nonstrict_fuzz_leading.src",
+				Patch: "nonstrict_shift.patch",
+			},
+			Options: []ApplyOption{WithFuzz(0)},
+			Err:     &Conflict{},
+		},
+		"errorNoMatch": {
+			Files: applyFiles{
+				Src:   "nonstrict_nomatch.src",
+				Patch: "nonstrict_shift.patch",
+			},
+			Options: []ApplyOption{WithFuzz(2)},
+			Err:     &Conflict{},
+		},
+		"errorStrictOffset": {
+			// Without WithFuzz, an offset patch must still fail.
+			Files: applyFiles{
+				Src:   "nonstrict_offset_forward.src",
+				Patch: "nonstrict_shift.patch",
+			},
+			Err: &Conflict{},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			test.run(t, func(dst io.Writer, src io.ReaderAt, file *File) error {
+				if len(file.TextFragments) != 1 {
+					t.Fatalf("patch should contain exactly one fragment, but it has %d", len(file.TextFragments))
+				}
+				applier := NewTextApplier(dst, src, test.Options...)
+				if err := applier.ApplyFragment(file.TextFragments[0]); err != nil {
+					return err
+				}
+				// Unlike TestApplyTextFragment, close the applier so that the
+				// expected output includes the lines after the fragment, which
+				// is where an incorrect offset is most visible.
+				return applier.Close()
+			})
+		})
+	}
+}
+
+// TestApplyTextFragmentNonStrictEdges guards the checks that non-strict mode
+// must share with strict mode, and the bounds that keep its search finite.
+// Every case here failed or did not terminate when non-strict application was
+// a separate code path from strict application.
+func TestApplyTextFragmentNonStrictEdges(t *testing.T) {
+	const (
+		insert     = "--- a/x\n+++ b/x\n@@ -1,0 +2,1 @@\n+inserted\n"
+		fullDelete = "--- a/x\n+++ b/x\n@@ -1,2 +0,0 @@\n-a\n-b\n"
+		change     = "--- a/x\n+++ b/x\n@@ -1,3 +1,3 @@\n a\n-b\n+B\n c\n"
+		pastEOF    = "--- a/x\n+++ b/x\n@@ -4000000000,3 +4000000000,3 @@\n a\n-b\n+B\n c\n"
+	)
+
+	// Enabling fuzz must not change the result for a fragment that needs no
+	// search, or whose source already matches exactly.
+	t.Run("matchesStrict", func(t *testing.T) {
+		for name, test := range map[string]struct{ src, patch string }{
+			// A fragment with no old lines has nothing to search for. Keying
+			// off OldPosition instead of OldLines made these conflict.
+			"insert": {"a\nb\nc\n", insert},
+			// Skipping the full-delete check dropped this conflict and wrote
+			// the leftover source line to dst.
+			"fullDeleteLeftover": {"a\nb\nleftover\n", fullDelete},
+			"fullDelete":         {"a\nb\n", fullDelete},
+			"change":             {"a\nb\nc\n", change},
+		} {
+			t.Run(name, func(t *testing.T) {
+				strictOut, strictErr := applyString(t, test.src, test.patch)
+				fuzzOut, fuzzErr := applyString(t, test.src, test.patch, WithFuzz(2))
+				if strictOut != fuzzOut {
+					t.Errorf("output differs from strict mode\nstrict:      %q\nWithFuzz(2): %q", strictOut, fuzzOut)
+				}
+				if (strictErr == nil) != (fuzzErr == nil) {
+					t.Errorf("error differs from strict mode\nstrict:      %v\nWithFuzz(2): %v", strictErr, fuzzErr)
+				}
+			})
+		}
+	})
+
+	// Searching backward from a position past the end of the source must be
+	// bounded by the source, not walk down to it one line at a time.
+	t.Run("positionPastEOF", func(t *testing.T) {
+		out, err := applyString(t, "a\nb\nc\n", pastEOF, WithFuzz(0))
+		if err != nil {
+			t.Fatalf("unexpected error applying: %v", err)
+		}
+		if want := "a\nB\nc\n"; out != want {
+			t.Errorf("incorrect result after apply\nexpected: %q\nactual:   %q", want, out)
+		}
+	})
+
+	// Fuzz beyond the fragment's context cannot drop more context, so it must
+	// not repeat the same search that many times.
+	t.Run("fuzzAboveContext", func(t *testing.T) {
+		if _, err := applyString(t, "x\ny\nz\n", change, WithFuzz(1<<40)); !errors.Is(err, &Conflict{}) {
+			t.Errorf("expected conflict, got %v", err)
+		}
+	})
+
+	// ApplyFragment is documented to apply each fragment at most once. Using
+	// the written source line as the search floor instead of the end of the
+	// previous fragment let a re-applied fragment match further down and
+	// silently duplicate its change.
+	t.Run("errorReapply", func(t *testing.T) {
+		files, _, err := Parse(strings.NewReader(change))
+		if err != nil {
+			t.Fatalf("failed to parse patch file: %v", err)
+		}
+		frag := files[0].TextFragments[0]
+
+		applier := NewTextApplier(io.Discard, strings.NewReader("a\nb\nc\na\nb\nc\n"), WithFuzz(0))
+		if err := applier.ApplyFragment(frag); err != nil {
+			t.Fatalf("unexpected error applying: %v", err)
+		}
+		if err := applier.ApplyFragment(frag); !errors.Is(err, &Conflict{}) {
+			t.Errorf("expected conflict re-applying fragment, got %v", err)
+		}
+	})
+}
+
+// applyString applies patch to src, returning the result as a string.
+func applyString(t *testing.T, src, patch string, opts ...ApplyOption) (string, error) {
+	t.Helper()
+
+	files, _, err := Parse(strings.NewReader(patch))
+	if err != nil {
+		t.Fatalf("failed to parse patch file: %v", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("patch should contain exactly one file, but it has %d", len(files))
+	}
+
+	var dst bytes.Buffer
+	err = Apply(&dst, strings.NewReader(src), files[0], opts...)
+	return dst.String(), err
 }
 
 type applyTest struct {
