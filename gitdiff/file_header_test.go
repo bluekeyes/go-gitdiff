@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -271,6 +272,39 @@ context line
 				t.Errorf("incorrect file\nexpected: %+v\n  actual: %+v", test.Output, f)
 			}
 		})
+	}
+}
+
+func TestParseDiffCommandKeepsDistinctNames(t *testing.T) {
+	input := "" +
+		"diff -u /old/rendered-1/cluster.yaml /new/rendered-2/cluster.yaml\n" +
+		"--- /old/rendered-1/cluster.yaml\t2026-01-14 20:44:05\n" +
+		"+++ /new/rendered-2/cluster.yaml\t2026-01-14 20:44:05\n" +
+		"@@ -1 +1 @@\n" +
+		"-a\n" +
+		"+b\n" +
+		"diff -u /old/rendered-1/other.yaml /new/rendered-2/other.yaml\n" +
+		"--- /old/rendered-1/other.yaml\t2026-01-14 20:44:05\n" +
+		"+++ /new/rendered-2/other.yaml\t2026-01-14 20:44:05\n" +
+		"@@ -1 +1 @@\n" +
+		"-a\n" +
+		"+b\n"
+
+	files, _, err := Parse(strings.NewReader(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("got %d files, want 2", len(files))
+	}
+	want := [][2]string{
+		{"/old/rendered-1/cluster.yaml", "/new/rendered-2/cluster.yaml"},
+		{"/old/rendered-1/other.yaml", "/new/rendered-2/other.yaml"},
+	}
+	for i, pair := range want {
+		if files[i].OldName != pair[0] || files[i].NewName != pair[1] {
+			t.Fatalf("file %d: old %q new %q, want old %q new %q", i, files[i].OldName, files[i].NewName, pair[0], pair[1])
+		}
 	}
 }
 
