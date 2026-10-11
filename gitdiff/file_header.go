@@ -39,6 +39,16 @@ func (p *parser) ParseNextFileHeader() (*File, string, error) {
 			return file, preamble.String(), nil
 		}
 
+		// A diff command names two files. Keep both paths. A header that is
+		// only --- and +++ still uses the traditional one-name heuristic.
+		file, err = p.ParseDiffCommandFileHeader()
+		if err != nil {
+			return nil, "", err
+		}
+		if file != nil {
+			return file, preamble.String(), nil
+		}
+
 		// check for a "traditional" patch
 		file, err = p.ParseTraditionalFileHeader()
 		if err != nil {
@@ -163,6 +173,60 @@ func (p *parser) ParseTraditionalFileHeader() (*File, error) {
 		}
 	}
 
+	return f, nil
+}
+
+// ParseDiffCommandFileHeader parses a unified diff that starts with a diff
+// command (diff -u, diff -ruN, and similar) followed by --- and +++ lines.
+// The command names two files, so both paths are kept. Patches that are only
+// --- and +++ still use ParseTraditionalFileHeader.
+func (p *parser) ParseDiffCommandFileHeader() (*File, error) {
+	const (
+		oldPrefix      = "--- "
+		newPrefix      = "+++ "
+		minFragmentLen = len("@@ -1 +1 @@\n")
+	)
+
+	line := p.Line(0)
+	if !strings.HasPrefix(line, "diff ") || strings.HasPrefix(line, "diff --git ") {
+		return nil, nil
+	}
+
+	oldLine, newLine := p.Line(1), p.Line(2)
+	if !strings.HasPrefix(oldLine, oldPrefix) || !strings.HasPrefix(newLine, newPrefix) {
+		return nil, nil
+	}
+	if len(p.Line(3)) < minFragmentLen || !strings.HasPrefix(p.Line(3), "@@ -") {
+		return nil, nil
+	}
+
+	oldName, _, err := parseName(oldLine[len(oldPrefix):], '\t', 0)
+	if err != nil {
+		return nil, p.Errorf(1, "file header: %v", err)
+	}
+	newName, _, err := parseName(newLine[len(newPrefix):], '\t', 0)
+	if err != nil {
+		return nil, p.Errorf(2, "file header: %v", err)
+	}
+
+	for i := 0; i < 3; i++ {
+		if err := p.Next(); err != nil {
+			return nil, err
+		}
+	}
+
+	f := &File{}
+	switch {
+	case oldName == devNull || hasEpochTimestamp(oldLine):
+		f.IsNew = true
+		f.NewName = newName
+	case newName == devNull || hasEpochTimestamp(newLine):
+		f.IsDelete = true
+		f.OldName = oldName
+	default:
+		f.OldName = oldName
+		f.NewName = newName
+	}
 	return f, nil
 }
 

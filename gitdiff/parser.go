@@ -80,7 +80,7 @@ type parser struct {
 
 	eof    bool
 	lineno int64
-	lines  [3]string
+	lines  [4]string
 }
 
 func newParser(r io.Reader) *parser {
