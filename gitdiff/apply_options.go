@@ -9,7 +9,41 @@ const (
 
 type applyOptions struct {
 	maxBinaryFragmentBytes int64
+
+	// maxLineOffset is how far a fragment may move from its recorded position,
+	// where zero allows no movement and a negative value is unbounded. fuzz is
+	// the number of context lines that may differ from the source. whitespace
+	// selects how remaining lines are compared.
+	maxLineOffset int64
+	fuzz          int
+	whitespace    WhitespaceMode
 }
+
+// A WhitespaceMode selects how the applier compares a line of a text fragment
+// with a line of the source. In every mode, a line that ends in a newline never
+// matches one that does not, so a patch that changes whether a file ends in a
+// newline still conflicts.
+type WhitespaceMode int
+
+const (
+	// WhitespaceExact requires lines to be identical. This is the default.
+	WhitespaceExact WhitespaceMode = iota
+
+	// WhitespaceIgnoreTrailing ignores whitespace at the end of lines, like the
+	// -Z option of diff(1).
+	WhitespaceIgnoreTrailing
+
+	// WhitespaceIgnoreChange ignores the amount of whitespace within lines,
+	// treating any run of whitespace as equal to any other, and ignores
+	// whitespace at the end of lines. A line with whitespace where another has
+	// none still differs. This is like the -b option of diff(1) and the
+	// --ignore-space-change option of git apply.
+	WhitespaceIgnoreChange
+
+	// WhitespaceIgnoreAll ignores all whitespace, like the -w option of
+	// diff(1).
+	WhitespaceIgnoreAll
+)
 
 // An ApplyOption modifies the behavior of [TextApplier] and [BinaryApplier].
 type ApplyOption func(*applyOptions)
@@ -30,6 +64,53 @@ type ApplyOption func(*applyOptions)
 func WithMaxBinaryFragmentBytes(b int64) ApplyOption {
 	return func(opts *applyOptions) {
 		opts.maxBinaryFragmentBytes = b
+	}
+}
+
+// WithMaxLineOffset allows text fragments to apply at a line offset from their
+// recorded position. The applier searches outward from that position, adjusted
+// by the offsets of previously applied fragments, for a location where the
+// fragment's lines match the source, looking at most lines away. A negative
+// value searches the whole source. This makes patches apply even when unrelated
+// edits above them have shifted line numbers, similar to git apply.
+//
+// The default value if unspecified is 0, which applies fragments only at their
+// recorded position.
+//
+// Passing this option to [BinaryApplier] has no effect.
+func WithMaxLineOffset(lines int64) ApplyOption {
+	return func(opts *applyOptions) {
+		opts.maxLineOffset = lines
+	}
+}
+
+// WithFuzz allows up to fuzz lines of leading and trailing context to differ
+// from the source, like the fuzz factor of patch(1). Context ignored this way is
+// written from the source rather than from the fragment. Deleted lines are never
+// fuzzed. Negative values are treated as 0.
+//
+// This is independent of [WithMaxLineOffset]: a fragment may need reduced
+// context at its recorded position, an exact match at a different position, or
+// both.
+//
+// Passing this option to [BinaryApplier] has no effect.
+func WithFuzz(fuzz int) ApplyOption {
+	return func(opts *applyOptions) {
+		opts.fuzz = max(fuzz, 0)
+	}
+}
+
+// WithWhitespaceMode sets how the applier compares fragment lines with source
+// lines, allowing fragments to apply to sources that differ only in whitespace.
+// Context lines are written from the source, so whitespace ignored while
+// matching is preserved in the result.
+//
+// The default value if unspecified is [WhitespaceExact].
+//
+// Passing this option to [BinaryApplier] has no effect.
+func WithWhitespaceMode(mode WhitespaceMode) ApplyOption {
+	return func(opts *applyOptions) {
+		opts.whitespace = mode
 	}
 }
 

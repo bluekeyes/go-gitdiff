@@ -102,6 +102,17 @@ func (r *lineReaderAt) indexTo(line int64) error {
 	return nil
 }
 
+// countLines returns the number of lines in the source, counting at most limit
+// of them. Only newline positions are read, not the content of the lines.
+func (r *lineReaderAt) countLines(limit int64) (int64, error) {
+	if !r.eof && int64(len(r.index)) < limit {
+		if err := r.indexTo(limit); err != nil {
+			return 0, err
+		}
+	}
+	return min(int64(len(r.index)), limit), nil
+}
+
 func (r *lineReaderAt) lastOffset() int64 {
 	if n := len(r.index); n > 0 {
 		return r.index[n-1]
